@@ -604,8 +604,5 @@ export function writeDbmlFile(filePath: string, content: string): void {
  * Escape a string for use in DBML single-quoted strings
  */
 function escapeDbmlString(str: string): string {
-  return str
-    .replace(/\\/g, "\\\\")
-    .replace(/'/g, "\\'")
-    .replace(/\n/g, "\\n");
+  return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
 }

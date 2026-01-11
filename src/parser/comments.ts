@@ -35,12 +35,7 @@ export interface SchemaComments {
  */
 export function extractComments(sourceFilePath: string): SchemaComments {
   const sourceCode = readFileSync(sourceFilePath, "utf-8");
-  const sourceFile = ts.createSourceFile(
-    sourceFilePath,
-    sourceCode,
-    ts.ScriptTarget.Latest,
-    true,
-  );
+  const sourceFile = ts.createSourceFile(sourceFilePath, sourceCode, ts.ScriptTarget.Latest, true);
 
   const comments: SchemaComments = { tables: {} };
 
@@ -53,11 +48,7 @@ export function extractComments(sourceFilePath: string): SchemaComments {
 /**
  * Recursively visit AST nodes to find table and column definitions
  */
-function visitNode(
-  node: ts.Node,
-  sourceFile: ts.SourceFile,
-  comments: SchemaComments,
-): void {
+function visitNode(node: ts.Node, sourceFile: ts.SourceFile, comments: SchemaComments): void {
   // Look for variable declarations that define tables
   if (ts.isVariableStatement(node)) {
     const jsDocComment = getJsDocComment(node, sourceFile);
