@@ -7,12 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **drizzle-docs-generator** - A CLI tool that generates DBML (Database Markup Language) files from Drizzle ORM schema definitions.
 
 ### Key Features
+
 - Parse Drizzle ORM schema files written in TypeScript
 - Generate DBML format output for database documentation
 - Use AST (Abstract Syntax Tree) parsing to extract schema information
 - Support comment clauses in DBML output (not natively supported by Drizzle)
 
 ### Technical Approach
+
 - **AST Parsing**: Use TypeScript Compiler API or @babel/parser to parse Drizzle schema files
 - **Schema Analysis**: Extract table definitions, columns, relationships, and comments from the AST
 - **DBML Generation**: Transform parsed schema into valid DBML format
@@ -66,6 +68,7 @@ pnpm dev                  # Run in development mode (when configured)
 ## DBML Format Reference
 
 DBML supports:
+
 - Table definitions with columns
 - Column types, constraints, and default values
 - Primary keys and indexes
@@ -73,6 +76,7 @@ DBML supports:
 - Table and column comments (Note clause)
 
 Example DBML output:
+
 ```dbml
 Table users {
   id integer [primary key]

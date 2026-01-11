@@ -2,37 +2,35 @@
   "name": "drizzle-docs-generator",
   "version": "0.0.1",
   "description": "A CLI tool that generates DBML files from Drizzle ORM schema definitions",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "keywords": [
+    "cli",
+    "database",
+    "dbml",
+    "documentation",
+    "drizzle",
+    "drizzle-orm",
+    "schema"
+  ],
+  "license": "ISC",
+  "author": "",
   "bin": {
     "drizzle-docs": "dist/cli/index.js"
   },
   "files": [
     "dist"
   ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "oxlint",
+    "format": "oxfmt --write",
+    "format:check": "oxfmt --check",
     "typecheck": "tsc --noEmit"
-  },
-  "keywords": [
-    "drizzle",
-    "drizzle-orm",
-    "dbml",
-    "database",
-    "schema",
-    "documentation",
-    "cli"
-  ],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.24.0",
-  "engines": {
-    "node": ">=18"
   },
   "dependencies": {
     "commander": "^13.1.0",
@@ -40,9 +38,14 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.21",
+    "oxfmt": "^0.23.0",
     "oxlint": "^0.16.10",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",
     "vitest": "^3.1.3"
-  }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.24.0"
 }

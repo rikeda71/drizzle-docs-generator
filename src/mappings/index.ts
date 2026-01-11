@@ -58,14 +58,10 @@ export const sqliteTypeMap: Record<string, string> = {
 
 export function mapDrizzleType(
   drizzleType: string,
-  dialect: "postgresql" | "mysql" | "sqlite" = "postgresql"
+  dialect: "postgresql" | "mysql" | "sqlite" = "postgresql",
 ): string {
   const typeMap =
-    dialect === "postgresql"
-      ? postgresTypeMap
-      : dialect === "mysql"
-        ? mysqlTypeMap
-        : sqliteTypeMap;
+    dialect === "postgresql" ? postgresTypeMap : dialect === "mysql" ? mysqlTypeMap : sqliteTypeMap;
 
   return typeMap[drizzleType] ?? drizzleType;
 }
