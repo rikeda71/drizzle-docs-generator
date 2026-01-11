@@ -44,6 +44,7 @@ gh pr create --title "chore: release v0.1.1" --body "Release version 0.1.1"
 ```
 
 Version types:
+
 - **patch**: Bug fixes (`0.1.0` → `0.1.1`)
 - **minor**: New features (backward compatible) (`0.1.0` → `0.2.0`)
 - **major**: Breaking changes (`0.1.0` → `1.0.0`)

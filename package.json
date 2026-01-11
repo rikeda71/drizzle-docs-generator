@@ -2,9 +2,6 @@
   "name": "drizzle-docs-generator",
   "version": "0.1.0",
   "description": "A CLI tool that generates DBML files from Drizzle ORM schema definitions.",
-  "publishConfig": {
-    "access": "public"
-  },
   "keywords": [
     "cli",
     "database",
@@ -36,6 +33,9 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
