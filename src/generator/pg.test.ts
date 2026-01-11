@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { pgGenerate } from "./pg.js";
+import { pgGenerate } from "./pg";
 import {
   pgTable,
   serial,
@@ -14,7 +14,7 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import type { SchemaComments } from "../parser/comments.js";
+import type { SchemaComments } from "../parser/comments";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 

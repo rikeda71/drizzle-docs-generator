@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sqliteGenerate } from "./sqlite.js";
+import { sqliteGenerate } from "./sqlite";
 import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
 
 describe("sqliteGenerate", () => {

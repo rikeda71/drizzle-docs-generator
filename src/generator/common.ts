@@ -11,9 +11,9 @@ import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/m
 import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import type { GeneratedRef, GenerateOptions } from "../types.js";
-import { extractComments, type SchemaComments } from "../parser/comments.js";
-import { extractRelations, type SchemaRelations } from "../parser/relations.js";
+import type { GeneratedRef, GenerateOptions } from "../types";
+import { extractComments, type SchemaComments } from "../parser/comments";
+import { extractRelations, type SchemaRelations } from "../parser/relations";
 
 /**
  * Simple DBML string builder

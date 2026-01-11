@@ -9,7 +9,7 @@
  * comments via the `comments` option.
  */
 
-export { pgGenerate, PgGenerator } from "./pg.js";
-export { mysqlGenerate, MySqlGenerator } from "./mysql.js";
-export { sqliteGenerate, SqliteGenerator } from "./sqlite.js";
-export { BaseGenerator, DbmlBuilder, writeDbmlFile } from "./common.js";
+export { pgGenerate, PgGenerator } from "./pg";
+export { mysqlGenerate, MySqlGenerator } from "./mysql";
+export { sqliteGenerate, SqliteGenerator } from "./sqlite";
+export { BaseGenerator, DbmlBuilder, writeDbmlFile } from "./common";

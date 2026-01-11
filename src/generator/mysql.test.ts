@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mysqlGenerate } from "./mysql.js";
+import { mysqlGenerate } from "./mysql";
 import { mysqlTable, serial, text, varchar, int, boolean } from "drizzle-orm/mysql-core";
 
 describe("mysqlGenerate", () => {

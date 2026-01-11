@@ -1,5 +1,5 @@
 import type { AnyColumn, Relations, Table } from "drizzle-orm";
-import type { SchemaComments } from "./parser/comments.js";
+import type { SchemaComments } from "./parser/comments";
 
 // Re-export Drizzle types for convenience
 export type { AnyColumn, Relations, Table };

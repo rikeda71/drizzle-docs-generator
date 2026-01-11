@@ -1,7 +1,7 @@
 import { type AnyColumn, getTableColumns } from "drizzle-orm";
 import { PgEnumColumn } from "drizzle-orm/pg-core";
-import { BaseGenerator, DbmlBuilder, writeDbmlFile, type DialectConfig } from "./common.js";
-import type { GenerateOptions } from "../types.js";
+import { BaseGenerator, DbmlBuilder, writeDbmlFile, type DialectConfig } from "./common";
+import type { GenerateOptions } from "../types";
 
 /**
  * PostgreSQL-specific DBML generator
