@@ -31,7 +31,23 @@ pnpm install              # Install dependencies
 pnpm build                # Build the project (when configured)
 pnpm test                 # Run tests (when configured)
 pnpm dev                  # Run in development mode (when configured)
+pnpm format               # Format code with oxfmt
+pnpm lint                 # Run linter
+pnpm typecheck            # Run TypeScript type checking
 ```
+
+## Before Committing
+
+**Always run the following commands before committing changes:**
+
+```bash
+pnpm format               # Format code
+pnpm lint                 # Check for lint errors
+pnpm typecheck            # Check for type errors
+pnpm test:run             # Run tests
+```
+
+This ensures CI will pass.
 
 ## Architecture
 
