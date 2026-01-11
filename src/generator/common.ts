@@ -1,12 +1,23 @@
 import {
   type AnyColumn,
-  type Relations,
   type Table,
   getTableColumns,
   getTableName,
   is,
+  Relation,
+  One,
 } from "drizzle-orm";
+import type { AnyRelation, TableRelationalConfig } from "drizzle-orm/relations";
 import { PgTable, getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
+
+/**
+ * Legacy v0 Relations type (for backward compatibility with relations())
+ * This is a simplified type - the actual structure is more complex
+ */
+type LegacyRelations = {
+  table: Table;
+  config: Record<string, unknown>;
+};
 import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/mysql-core";
 import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -62,6 +73,10 @@ export interface TableConfig {
   foreignKeys: unknown[];
 }
 
+// Use official v1 types from drizzle-orm/relations:
+// - TableRelationalConfig: { table, name, relations: Record<string, AnyRelation> }
+// - AnyRelation: Relation with sourceColumns, targetColumns, relationType, etc.
+
 /**
  * Base generator class for DBML generation
  */
@@ -100,7 +115,8 @@ export abstract class BaseGenerator<
   generate(): string {
     const dbml = new DbmlBuilder();
     const tables = this.getTables();
-    const relations = this.getRelations();
+    const v0Relations = this.getV0Relations();
+    const v1Entries = this.getV1RelationEntries();
 
     // Generate tables
     for (const table of tables) {
@@ -108,9 +124,16 @@ export abstract class BaseGenerator<
       dbml.line();
     }
 
-    // Generate references from relations() definitions
-    if (this.relational && (relations.length > 0 || this.parsedRelations)) {
-      this.generateRelationalRefs(dbml, relations);
+    // Generate references from relations
+    if (this.relational) {
+      // Try v1 defineRelations() first - runtime object parsing with official types
+      if (v1Entries.length > 0) {
+        this.generateRelationalRefsFromV1(v1Entries);
+      }
+      // Fall back to v0 relations() with AST parsing
+      else if (v0Relations.length > 0 || this.parsedRelations) {
+        this.generateRelationalRefsFromV0(dbml, v0Relations);
+      }
     }
 
     // Add collected refs
@@ -142,31 +165,99 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Get all relations from schema
+   * Get all v0 relations from schema (legacy relations() API)
    */
-  protected getRelations(): Relations[] {
-    const relations: Relations[] = [];
+  protected getV0Relations(): LegacyRelations[] {
+    const relations: LegacyRelations[] = [];
     for (const value of Object.values(this.schema)) {
-      if (this.isRelations(value)) {
-        relations.push(value as Relations);
+      if (this.isV0Relations(value)) {
+        relations.push(value as LegacyRelations);
       }
     }
     return relations;
   }
 
   /**
-   * Check if a value is a Drizzle relations object
+   * Check if a value is a Drizzle v0 relations object (from relations())
    */
-  protected isRelations(value: unknown): boolean {
+  protected isV0Relations(value: unknown): boolean {
     if (typeof value !== "object" || value === null) {
       return false;
     }
-    // Relations objects have 'table' and 'config' properties
+    // v0 Relations objects have 'table' and 'config' properties
     return (
       "table" in value &&
       "config" in value &&
       typeof (value as Record<string, unknown>).config === "object"
     );
+  }
+
+  /**
+   * Check if a value is a v1 relation entry (from defineRelations())
+   * Uses official Drizzle v1 types: TableRelationalConfig with Relation instances
+   */
+  protected isV1RelationEntry(value: unknown): value is TableRelationalConfig {
+    if (typeof value !== "object" || value === null) {
+      return false;
+    }
+    const obj = value as Record<string, unknown>;
+    if (
+      !("table" in obj) ||
+      !("name" in obj) ||
+      typeof obj.name !== "string" ||
+      !("relations" in obj) ||
+      typeof obj.relations !== "object" ||
+      obj.relations === null
+    ) {
+      return false;
+    }
+    // Check that 'relations' contains Relation instances (using drizzle-orm is())
+    const relations = obj.relations as Record<string, unknown>;
+    const relationValues = Object.values(relations);
+    // Empty relations object is valid, but if there are entries, they must be Relations
+    if (relationValues.length > 0) {
+      return relationValues.some((rel) => is(rel, Relation));
+    }
+    // If no relations defined, also check table is valid
+    return this.isTable(obj.table);
+  }
+
+  /**
+   * Get all v1 relation entries from schema (defineRelations() API)
+   * Handles both individual entries and the full defineRelations() result object
+   */
+  protected getV1RelationEntries(): TableRelationalConfig[] {
+    const entries: TableRelationalConfig[] = [];
+    for (const value of Object.values(this.schema)) {
+      // Check if it's an individual relation entry
+      if (this.isV1RelationEntry(value)) {
+        entries.push(value);
+      }
+      // Check if it's the full defineRelations() result object
+      // (an object where each value is a relation entry)
+      else if (this.isV1DefineRelationsResult(value)) {
+        for (const entry of Object.values(value as Record<string, unknown>)) {
+          if (this.isV1RelationEntry(entry)) {
+            entries.push(entry);
+          }
+        }
+      }
+    }
+    return entries;
+  }
+
+  /**
+   * Check if a value is a full v1 defineRelations() result object
+   * This is an object where all values are TableRelationalConfig objects
+   */
+  protected isV1DefineRelationsResult(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return false;
+    }
+    const obj = value as Record<string, unknown>;
+    const values = Object.values(obj);
+    // Must have at least one entry and all must be relation entries
+    return values.length > 0 && values.every((v) => this.isV1RelationEntry(v));
   }
 
   /**
@@ -534,14 +625,14 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Generate references from relations
+   * Generate references from v0 relations() API
    *
    * Uses TypeScript Compiler API to parse relations() definitions from source file
    * and extract fields/references to generate DBML Ref lines.
    *
    * Detects one-to-one relationships when bidirectional one() relations exist.
    */
-  protected generateRelationalRefs(_dbml: DbmlBuilder, _relations: Relations[]): void {
+  protected generateRelationalRefsFromV0(_dbml: DbmlBuilder, _relations: LegacyRelations[]): void {
     if (!this.parsedRelations || this.parsedRelations.relations.length === 0) {
       return;
     }
@@ -607,6 +698,113 @@ export abstract class BaseGenerator<
 
       this.generatedRefs.push(ref);
     }
+  }
+
+  /**
+   * Generate references from v1 defineRelations() entries
+   * Uses official Drizzle v1 types (TableRelationalConfig, Relation, One)
+   */
+  protected generateRelationalRefsFromV1(entries: TableRelationalConfig[]): void {
+    const processedRefs = new Set<string>();
+
+    for (const entry of entries) {
+      const sourceTableName = getTableName(entry.table as Table);
+
+      for (const [_relationName, relation] of Object.entries(entry.relations)) {
+        // Only process One relations as they define the FK direction
+        // Many relations are the inverse and don't add new information
+        if (!is(relation, One)) {
+          continue;
+        }
+
+        // Skip reversed relations (they are auto-generated inverse relations)
+        if ((relation as AnyRelation).isReversed) {
+          continue;
+        }
+
+        // Get source and target column names (using official Relation properties)
+        const rel = relation as AnyRelation;
+        const sourceColumns = rel.sourceColumns.map((col) => col.name);
+        const targetColumns = rel.targetColumns.map((col) => col.name);
+
+        if (sourceColumns.length === 0 || targetColumns.length === 0) {
+          continue;
+        }
+
+        const targetTableName = getTableName(rel.targetTable as Table);
+
+        // Create a unique key to avoid duplicate refs
+        const refKey = `${sourceTableName}.${sourceColumns.join(",")}->${targetTableName}.${targetColumns.join(",")}`;
+        const reverseRefKey = `${targetTableName}.${targetColumns.join(",")}->${sourceTableName}.${sourceColumns.join(",")}`;
+
+        if (processedRefs.has(refKey) || processedRefs.has(reverseRefKey)) {
+          continue;
+        }
+        processedRefs.add(refKey);
+
+        // Check if there's a reverse one() relation (indicating one-to-one)
+        const isOneToOne = this.hasV1ReverseOneRelation(
+          entries,
+          targetTableName,
+          sourceTableName,
+          targetColumns,
+          sourceColumns,
+        );
+
+        const ref: GeneratedRef = {
+          fromTable: sourceTableName,
+          fromColumns: sourceColumns,
+          toTable: targetTableName,
+          toColumns: targetColumns,
+          type: isOneToOne ? "-" : ">",
+        };
+
+        this.generatedRefs.push(ref);
+      }
+    }
+  }
+
+  /**
+   * Check if there's a reverse One relation in v1 entries
+   */
+  protected hasV1ReverseOneRelation(
+    entries: TableRelationalConfig[],
+    fromTableName: string,
+    toTableName: string,
+    fromColumns: string[],
+    toColumns: string[],
+  ): boolean {
+    const fromEntry = entries.find((e) => getTableName(e.table as Table) === fromTableName);
+    if (!fromEntry) {
+      return false;
+    }
+
+    for (const relation of Object.values(fromEntry.relations)) {
+      if (!is(relation, One)) {
+        continue;
+      }
+
+      const rel = relation as AnyRelation;
+      const relTargetName = getTableName(rel.targetTable as Table);
+      if (relTargetName !== toTableName) {
+        continue;
+      }
+
+      const relSourceCols = rel.sourceColumns.map((col) => col.name);
+      const relTargetCols = rel.targetColumns.map((col) => col.name);
+
+      // Check if columns match in reverse
+      if (
+        relSourceCols.length === fromColumns.length &&
+        relTargetCols.length === toColumns.length &&
+        relSourceCols.every((col, i) => col === fromColumns[i]) &&
+        relTargetCols.every((col, i) => col === toColumns[i])
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

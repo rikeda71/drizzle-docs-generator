@@ -1,15 +1,7 @@
 /**
- * SQLite example schema for integration testing
+ * SQLite example schema using Drizzle v1 defineRelations() API
  *
- * This schema includes all features that should be tested:
- * - Multiple tables with various column types
- * - Primary keys (single and composite)
- * - Foreign key references
- * - Unique constraints
- * - Indexes
- * - Default values (literal and SQL expressions)
- * - JSDoc comments (table and column)
- * - Relations definitions
+ * This schema uses the new v1 API (defineRelations) instead of v0 (relations)
  */
 
 import {
@@ -21,7 +13,7 @@ import {
   unique,
   index,
 } from "drizzle-orm/sqlite-core";
-import { relations } from "drizzle-orm/_relations";
+import { defineRelations } from "drizzle-orm";
 
 /** User accounts table storing basic user information */
 export const users = sqliteTable(
@@ -130,44 +122,29 @@ export const postTags = sqliteTable(
   ],
 );
 
-// Relations definitions for Drizzle ORM relational queries
+// Schema object for defineRelations
+const schema = { users, posts, comments, tags, postTags };
 
-export const usersRelations = relations(users, ({ many }) => ({
-  posts: many(posts),
-  comments: many(comments),
-}));
-
-export const postsRelations = relations(posts, ({ one, many }) => ({
-  author: one(users, {
-    fields: [posts.authorId],
-    references: [users.id],
-  }),
-  comments: many(comments),
-  postTags: many(postTags),
-}));
-
-export const commentsRelations = relations(comments, ({ one }) => ({
-  post: one(posts, {
-    fields: [comments.postId],
-    references: [posts.id],
-  }),
-  author: one(users, {
-    fields: [comments.authorId],
-    references: [users.id],
-  }),
-}));
-
-export const tagsRelations = relations(tags, ({ many }) => ({
-  postTags: many(postTags),
-}));
-
-export const postTagsRelations = relations(postTags, ({ one }) => ({
-  post: one(posts, {
-    fields: [postTags.postId],
-    references: [posts.id],
-  }),
-  tag: one(tags, {
-    fields: [postTags.tagId],
-    references: [tags.id],
-  }),
+// v1 API: defineRelations() for relational queries
+export const relations = defineRelations(schema, (r) => ({
+  users: {
+    posts: r.many.posts(),
+    comments: r.many.comments(),
+  },
+  posts: {
+    author: r.one.users({ from: r.posts.authorId, to: r.users.id }),
+    comments: r.many.comments(),
+    postTags: r.many.postTags(),
+  },
+  comments: {
+    post: r.one.posts({ from: r.comments.postId, to: r.posts.id }),
+    author: r.one.users({ from: r.comments.authorId, to: r.users.id }),
+  },
+  tags: {
+    postTags: r.many.postTags(),
+  },
+  postTags: {
+    post: r.one.posts({ from: r.postTags.postId, to: r.posts.id }),
+    tag: r.one.tags({ from: r.postTags.tagId, to: r.tags.id }),
+  },
 }));
