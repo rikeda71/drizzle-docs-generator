@@ -1,20 +1,17 @@
 /**
- * PostgreSQL example schema using RQBv2 (defineRelations)
+ * PostgreSQL example schema using Drizzle v1 defineRelations() API
  *
- * This schema demonstrates the new Drizzle ORM v1 API:
- * - Tables defined with pgTable
- * - Relations defined with defineRelations() instead of relations()
- * - JSDoc comments for documentation
+ * This schema uses the new v1 API (defineRelations) instead of v0 (relations)
  */
 
 import {
   pgTable,
   serial,
-  varchar,
   text,
+  varchar,
+  integer,
   boolean,
   timestamp,
-  integer,
   primaryKey,
   foreignKey,
   unique,
@@ -31,13 +28,13 @@ export const users = pgTable(
     /** User's display name */
     name: varchar("name", { length: 100 }).notNull(),
     /** Email address (must be unique) */
-    email: varchar("email", { length: 255 }).notNull().unique(),
+    email: varchar("email", { length: 255 }).unique().notNull(),
     /** Whether the user account is active */
     active: boolean("active").default(true),
     /** Timestamp when the user was created */
     createdAt: timestamp("created_at").defaultNow(),
   },
-  (table) => [index().on(table.email)],
+  (table) => [index("users_email_idx").on(table.email)],
 );
 
 /** Blog posts created by users */
@@ -58,11 +55,11 @@ export const posts = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
-    index().on(table.authorId),
     foreignKey({
       columns: [table.authorId],
       foreignColumns: [users.id],
     }),
+    index("posts_author_idx").on(table.authorId),
   ],
 );
 
@@ -100,11 +97,11 @@ export const tags = pgTable(
     /** Auto-generated unique identifier */
     id: serial("id").primaryKey(),
     /** Tag name (must be unique) */
-    name: varchar("name", { length: 50 }).notNull().unique(),
+    name: varchar("name", { length: 50 }).unique().notNull(),
     /** Tag color for display */
     color: varchar("color", { length: 7 }).default("#000000"),
   },
-  (table) => [unique().on(table.name)],
+  (table) => [unique("tags_name_unique").on(table.name)],
 );
 
 /** Join table for many-to-many relationship between posts and tags */
@@ -132,54 +129,26 @@ export const postTags = pgTable(
 // Schema object for defineRelations
 const schema = { users, posts, comments, tags, postTags };
 
-/**
- * Relations defined using RQBv2 (defineRelations)
- * This is the new v1 API for defining relations
- */
+// v1 API: defineRelations() for relational queries
 export const relations = defineRelations(schema, (r) => ({
   users: {
-    /** Posts written by this user */
     posts: r.many.posts(),
-    /** Comments written by this user */
     comments: r.many.comments(),
   },
   posts: {
-    /** Author of this post */
-    author: r.one.users({
-      from: r.posts.authorId,
-      to: r.users.id,
-    }),
-    /** Comments on this post */
+    author: r.one.users({ from: r.posts.authorId, to: r.users.id }),
     comments: r.many.comments(),
-    /** Tags associated with this post */
     postTags: r.many.postTags(),
   },
   comments: {
-    /** Post this comment belongs to */
-    post: r.one.posts({
-      from: r.comments.postId,
-      to: r.posts.id,
-    }),
-    /** Author of this comment */
-    author: r.one.users({
-      from: r.comments.authorId,
-      to: r.users.id,
-    }),
+    post: r.one.posts({ from: r.comments.postId, to: r.posts.id }),
+    author: r.one.users({ from: r.comments.authorId, to: r.users.id }),
   },
   tags: {
-    /** Posts associated with this tag */
     postTags: r.many.postTags(),
   },
   postTags: {
-    /** Post in this relationship */
-    post: r.one.posts({
-      from: r.postTags.postId,
-      to: r.posts.id,
-    }),
-    /** Tag in this relationship */
-    tag: r.one.tags({
-      from: r.postTags.tagId,
-      to: r.tags.id,
-    }),
+    post: r.one.posts({ from: r.postTags.postId, to: r.posts.id }),
+    tag: r.one.tags({ from: r.postTags.tagId, to: r.tags.id }),
   },
 }));
