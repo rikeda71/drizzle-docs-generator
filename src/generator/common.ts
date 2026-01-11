@@ -13,6 +13,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { GeneratedRef, GenerateOptions } from "../types.js";
 import { extractComments, type SchemaComments } from "../parser/comments.js";
+import { extractRelations, type SchemaRelations } from "../parser/relations.js";
 
 /**
  * Simple DBML string builder
@@ -71,17 +72,25 @@ export abstract class BaseGenerator<
   protected relational: boolean;
   protected generatedRefs: GeneratedRef[] = [];
   protected comments: SchemaComments | undefined;
+  protected parsedRelations: SchemaRelations | undefined;
+  protected sourceFile: string | undefined;
   protected abstract dialectConfig: DialectConfig;
 
   constructor(options: GenerateOptions<TSchema>) {
     this.schema = options.schema;
     this.relational = options.relational ?? false;
+    this.sourceFile = options.sourceFile;
 
     // Initialize comments from options
     if (options.comments) {
       this.comments = options.comments;
     } else if (options.sourceFile) {
       this.comments = extractComments(options.sourceFile);
+    }
+
+    // Extract relations from source file if relational mode is enabled
+    if (this.relational && options.sourceFile) {
+      this.parsedRelations = extractRelations(options.sourceFile);
     }
   }
 
@@ -99,8 +108,8 @@ export abstract class BaseGenerator<
       dbml.line();
     }
 
-    // Generate references
-    if (this.relational && relations.length > 0) {
+    // Generate references from relations() definitions
+    if (this.relational && (relations.length > 0 || this.parsedRelations)) {
       this.generateRelationalRefs(dbml, relations);
     }
 
@@ -447,19 +456,96 @@ export abstract class BaseGenerator<
   }
 
   /**
+   * Get a mapping from variable names to table names in the schema
+   */
+  protected getTableNameMapping(): Map<string, string> {
+    const mapping = new Map<string, string>();
+    for (const [varName, value] of Object.entries(this.schema)) {
+      if (this.isTable(value)) {
+        const tableName = getTableName(value as Table);
+        mapping.set(varName, tableName);
+      }
+    }
+    return mapping;
+  }
+
+  /**
+   * Get a mapping from TypeScript property names to database column names for a table
+   * e.g., { authorId: "author_id" }
+   */
+  protected getColumnNameMapping(tableVarName: string): Map<string, string> {
+    const mapping = new Map<string, string>();
+    const table = this.schema[tableVarName];
+    if (table && this.isTable(table)) {
+      const columns = getTableColumns(table as Table);
+      for (const [propName, column] of Object.entries(columns)) {
+        mapping.set(propName, column.name);
+      }
+    }
+    return mapping;
+  }
+
+  /**
    * Generate references from relations
    *
-   * Note: Currently limited - relations() definitions require runtime evaluation
-   * with helper functions (one, many). For now, use foreignKey() definitions
-   * for generating DBML references.
-   *
-   * TODO: 構文木（TypeScript Compiler API）を使ったアプローチで
-   * relations() 定義からもリファレンスを生成できるようにする
+   * Uses TypeScript Compiler API to parse relations() definitions from source file
+   * and extract fields/references to generate DBML Ref lines.
    */
   protected generateRelationalRefs(_dbml: DbmlBuilder, _relations: Relations[]): void {
-    // Relations require runtime evaluation with helper functions
-    // which we cannot provide at DBML generation time.
-    // Use foreignKey() definitions instead for references.
+    if (!this.parsedRelations || this.parsedRelations.relations.length === 0) {
+      return;
+    }
+
+    const tableNameMapping = this.getTableNameMapping();
+    const processedRefs = new Set<string>();
+
+    for (const parsedRelation of this.parsedRelations.relations) {
+      // Only process one() relations with fields and references
+      // many() relations are typically the inverse and don't have field info
+      if (parsedRelation.type !== "one") {
+        continue;
+      }
+
+      if (parsedRelation.fields.length === 0 || parsedRelation.references.length === 0) {
+        continue;
+      }
+
+      // Map variable names to actual table names
+      const fromTableName = tableNameMapping.get(parsedRelation.sourceTable);
+      const toTableName = tableNameMapping.get(parsedRelation.targetTable);
+
+      if (!fromTableName || !toTableName) {
+        continue;
+      }
+
+      // Get column name mappings (TypeScript property names -> database column names)
+      const fromColumnMapping = this.getColumnNameMapping(parsedRelation.sourceTable);
+      const toColumnMapping = this.getColumnNameMapping(parsedRelation.targetTable);
+
+      // Map TypeScript field names to database column names
+      const fromColumns = parsedRelation.fields.map(
+        (field) => fromColumnMapping.get(field) || field,
+      );
+      const toColumns = parsedRelation.references.map((ref) => toColumnMapping.get(ref) || ref);
+
+      // Create a unique key to avoid duplicate refs
+      const refKey = `${fromTableName}.${fromColumns.join(",")}-${toTableName}.${toColumns.join(",")}`;
+      if (processedRefs.has(refKey)) {
+        continue;
+      }
+      processedRefs.add(refKey);
+
+      // Create GeneratedRef
+      const ref: GeneratedRef = {
+        fromTable: fromTableName,
+        fromColumns,
+        toTable: toTableName,
+        toColumns,
+        type: ">", // many-to-one (the "one" side points to the referenced table)
+      };
+
+      this.generatedRefs.push(ref);
+    }
   }
 
   /**
