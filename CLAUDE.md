@@ -6,19 +6,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **drizzle-docs-generator** - A CLI tool that generates DBML (Database Markup Language) files from Drizzle ORM schema definitions.
 
+For detailed user documentation, see:
+
+- [README.md](./README.md) - English documentation
+- [README.ja.md](./README.ja.md) - Japanese documentation
+
 ### Key Features
 
 - Parse Drizzle ORM schema files written in TypeScript
 - Generate DBML format output for database documentation
-- Use AST (Abstract Syntax Tree) parsing to extract schema information
-- Support comment clauses in DBML output (not natively supported by Drizzle)
+- Extract JSDoc comments from source code and include as DBML Note clauses
+- Support relations() definitions for generating references
+- Watch mode for automatic regeneration
+- Support for PostgreSQL, MySQL, and SQLite
+
+### Why This Tool Exists
+
+While Drizzle Kit provides `drizzle-kit push --dbml` for DBML generation, it doesn't include comments in the output. This tool extends that functionality by parsing JSDoc comments from source code and converting them to DBML Note clauses.
 
 ### Technical Approach
 
-- **AST Parsing**: Use TypeScript Compiler API or @babel/parser to parse Drizzle schema files
-- **Schema Analysis**: Extract table definitions, columns, relationships, and comments from the AST
-- **DBML Generation**: Transform parsed schema into valid DBML format
-- **CLI Interface**: Provide command-line interface for easy usage
+- **AST Parsing**: Use TypeScript Compiler API to parse Drizzle schema files
+- **Comment Extraction**: Extract JSDoc comments from table and column definitions
+- **Schema Analysis**: Extract table definitions, columns, relationships from Drizzle schema objects
+- **DBML Generation**: Transform parsed schema into valid DBML format with Note clauses
+- **CLI Interface**: Provide command-line interface with watch mode support
 
 ## Package Manager
 
@@ -28,11 +40,12 @@ This project uses **pnpm** (v10.24.0) as specified in `package.json`. Always use
 
 ```bash
 pnpm install              # Install dependencies
-pnpm build                # Build the project (when configured)
-pnpm test                 # Run tests (when configured)
-pnpm dev                  # Run in development mode (when configured)
+pnpm build                # Build the project
+pnpm test                 # Run tests in watch mode
+pnpm test:run             # Run tests once
+pnpm dev                  # Build in watch mode
 pnpm format               # Format code with oxfmt
-pnpm lint                 # Run linter
+pnpm lint                 # Run linter with oxlint
 pnpm typecheck            # Run TypeScript type checking
 ```
 
@@ -51,31 +64,31 @@ This ensures CI will pass.
 
 ## Architecture
 
-### Core Components (To Be Implemented)
+### Core Components
 
 1. **Schema Parser** (`src/parser/`)
-   - Read Drizzle schema files (.ts)
-   - Parse TypeScript code into AST
-   - Extract schema definitions (tables, columns, relations)
-   - Handle JSDoc comments for additional metadata
+   - `comments.ts`: Extract JSDoc comments from TypeScript source files using TS Compiler API
+   - `relations.ts`: Extract relations() definitions from source files
+   - `index.ts`: Public API for comment extraction
 
 2. **DBML Generator** (`src/generator/`)
-   - Transform parsed schema into DBML format
-   - Generate table definitions with columns and types
-   - Include relationships (foreign keys, references)
-   - Add comment clauses from JSDoc or inline comments
+   - `common.ts`: Base generator class and DBML builder utilities
+   - `pg.ts`: PostgreSQL-specific DBML generator
+   - `mysql.ts`: MySQL-specific DBML generator
+   - `sqlite.ts`: SQLite-specific DBML generator
+   - `index.ts`: Public API for DBML generation
 
 3. **CLI Interface** (`src/cli/`)
-   - Parse command-line arguments
-   - Handle file input/output
-   - Provide error messages and usage help
+   - `index.ts`: CLI implementation using Commander.js
+   - Supports file input/output, watch mode, dialect selection
+   - Dynamic import with cache busting for watch mode
 
-### Key Dependencies (Planned)
+### Key Dependencies
 
-- TypeScript Compiler API (`typescript`) for AST parsing
-- CLI framework (e.g., `commander`, `yargs`)
-- File system operations (`fs-extra` or Node.js `fs/promises`)
-- Drizzle ORM types for reference
+- `typescript`: TypeScript Compiler API for AST parsing
+- `commander`: CLI framework for command-line argument parsing
+- `drizzle-orm`: Drizzle ORM v1 beta types and runtime
+- Node.js built-in modules (`fs`, `path`, `url`) for file operations
 
 ## DBML Format Reference
 
@@ -99,10 +112,61 @@ Table users {
 }
 ```
 
+## CLI Usage
+
+### Basic Usage
+
+```bash
+# Generate DBML for PostgreSQL schema
+drizzle-docs generate ./src/db/schema.ts -d postgresql
+
+# Output to a file
+drizzle-docs generate ./src/db/schema.ts -d postgresql -o schema.dbml
+
+# Use relations() definitions for references
+drizzle-docs generate ./src/db/schema.ts -d postgresql -r
+
+# Watch mode (auto-regenerate on file changes)
+drizzle-docs generate ./src/db/schema.ts -d postgresql -w
+```
+
+### Supported Dialects
+
+- `postgresql` (default)
+- `mysql`
+- `sqlite`
+
+## API Usage
+
+### Generate DBML
+
+```typescript
+import { pgGenerate, mysqlGenerate, sqliteGenerate } from "drizzle-docs-generator";
+import * as schema from "./schema";
+
+const dbml = pgGenerate({
+  schema,
+  source: "./schema.ts", // For comment extraction
+  relational: false, // Use relations() definitions
+  out: "./output.dbml", // Optional: write to file
+});
+```
+
+### Extract Comments
+
+```typescript
+import { extractComments } from "drizzle-docs-generator";
+
+const comments = extractComments("./path/to/schema.ts");
+// Returns: { tables: { [tableName]: { comment?: string, columns: { [col]: string } } } }
+```
+
 ## Notes
 
 - The project uses ISC license
-- Drizzle natively supports `drizzle-kit push` with `--dbml` flag, but it doesn't include comments
-- This tool extends that functionality by parsing comments from source code
-- use `gh` for view PR, create Issue, etc...
-  - :warning: use `gh` with `--repo rikeda71/drizzle-docs-generator` option
+- Requires Node.js >= 24
+- Requires Drizzle ORM v1 beta (1.0.0-beta.10+)
+- Drizzle natively supports `drizzle-kit push --dbml`, but it doesn't include comments
+- This tool extends that functionality by parsing JSDoc comments from source code
+- Use `gh` for viewing PRs, creating issues, etc.
+  - :warning: Always use `gh` with `--repo rikeda71/drizzle-docs-generator` option
