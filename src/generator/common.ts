@@ -1,6 +1,14 @@
 import { type AnyColumn, type Table, getTableColumns, getTableName, is } from "drizzle-orm";
-import type { Relations } from "drizzle-orm/_relations";
 import { PgTable, getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
+
+/**
+ * Legacy v0 Relations type (for backward compatibility with relations())
+ * This is a simplified type - the actual structure is more complex
+ */
+type LegacyRelations = {
+  table: Table;
+  config: Record<string, unknown>;
+};
 import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/mysql-core";
 import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -168,11 +176,11 @@ export abstract class BaseGenerator<
   /**
    * Get all relations from schema
    */
-  protected getRelations(): Relations[] {
-    const relations: Relations[] = [];
+  protected getRelations(): LegacyRelations[] {
+    const relations: LegacyRelations[] = [];
     for (const value of Object.values(this.schema)) {
       if (this.isRelations(value)) {
-        relations.push(value as Relations);
+        relations.push(value as LegacyRelations);
       }
     }
     return relations;
@@ -623,7 +631,7 @@ export abstract class BaseGenerator<
    *
    * Detects one-to-one relationships when bidirectional one() relations exist.
    */
-  protected generateRelationalRefs(_dbml: DbmlBuilder, _relations: Relations[]): void {
+  protected generateRelationalRefs(_dbml: DbmlBuilder, _relations: LegacyRelations[]): void {
     if (!this.parsedRelations || this.parsedRelations.relations.length === 0) {
       return;
     }
