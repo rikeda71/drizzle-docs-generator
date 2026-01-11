@@ -1,13 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mysqlGenerate } from "./mysql.js";
-import {
-  mysqlTable,
-  serial,
-  text,
-  varchar,
-  int,
-  boolean,
-} from "drizzle-orm/mysql-core";
+import { mysqlTable, serial, text, varchar, int, boolean } from "drizzle-orm/mysql-core";
 
 describe("mysqlGenerate", () => {
   it("should generate DBML for a simple table", () => {

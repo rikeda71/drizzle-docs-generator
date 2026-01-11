@@ -6,10 +6,7 @@ import {
   getTableName,
   is,
 } from "drizzle-orm";
-import {
-  PgTable,
-  getTableConfig as getPgTableConfig,
-} from "drizzle-orm/pg-core";
+import { PgTable, getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
 import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/mysql-core";
 import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -123,9 +120,7 @@ export abstract class BaseGenerator<
    * Check if a value is a Drizzle table
    */
   protected isTable(value: unknown): boolean {
-    return (
-      is(value, PgTable) || is(value, MySqlTable) || is(value, SQLiteTable)
-    );
+    return is(value, PgTable) || is(value, MySqlTable) || is(value, SQLiteTable);
   }
 
   /**
@@ -308,11 +303,7 @@ export abstract class BaseGenerator<
         for (const chunk of chunks) {
           if (typeof chunk === "string") {
             sqlParts.push(chunk);
-          } else if (
-            typeof chunk === "object" &&
-            chunk !== null &&
-            "value" in chunk
-          ) {
+          } else if (typeof chunk === "object" && chunk !== null && "value" in chunk) {
             sqlParts.push(String((chunk as { value: unknown }).value));
           }
         }
@@ -339,17 +330,10 @@ export abstract class BaseGenerator<
   /**
    * Generate indexes block from table configuration
    */
-  protected generateIndexesBlock(
-    dbml: DbmlBuilder,
-    tableConfig: TableConfig,
-  ): void {
+  protected generateIndexesBlock(dbml: DbmlBuilder, tableConfig: TableConfig): void {
     const { indexes, primaryKeys, uniqueConstraints } = tableConfig;
 
-    if (
-      indexes.length === 0 &&
-      primaryKeys.length === 0 &&
-      uniqueConstraints.length === 0
-    ) {
+    if (indexes.length === 0 && primaryKeys.length === 0 && uniqueConstraints.length === 0) {
       return;
     }
 
@@ -396,10 +380,7 @@ export abstract class BaseGenerator<
   /**
    * Collect foreign keys from table configuration
    */
-  protected collectForeignKeysFromConfig(
-    tableName: string,
-    foreignKeys: unknown[],
-  ): void {
+  protected collectForeignKeysFromConfig(tableName: string, foreignKeys: unknown[]): void {
     for (const fk of foreignKeys) {
       const ref = this.parseForeignKey(tableName, fk);
       if (ref) {
@@ -411,10 +392,7 @@ export abstract class BaseGenerator<
   /**
    * Parse a foreign key into a GeneratedRef
    */
-  protected parseForeignKey(
-    tableName: string,
-    fk: unknown,
-  ): GeneratedRef | undefined {
+  protected parseForeignKey(tableName: string, fk: unknown): GeneratedRef | undefined {
     try {
       const fkObj = fk as {
         reference: () => {
@@ -454,10 +432,7 @@ export abstract class BaseGenerator<
    * TODO: 構文木（TypeScript Compiler API）を使ったアプローチで
    * relations() 定義からもリファレンスを生成できるようにする
    */
-  protected generateRelationalRefs(
-    _dbml: DbmlBuilder,
-    _relations: Relations[],
-  ): void {
+  protected generateRelationalRefs(_dbml: DbmlBuilder, _relations: Relations[]): void {
     // Relations require runtime evaluation with helper functions
     // which we cannot provide at DBML generation time.
     // Use foreignKey() definitions instead for references.
@@ -468,9 +443,7 @@ export abstract class BaseGenerator<
    */
   protected getRelationKey(tableName: string, relation: unknown): string {
     const rel = relation as { referencedTable?: Table };
-    const referencedTable = rel.referencedTable
-      ? getTableName(rel.referencedTable)
-      : "unknown";
+    const referencedTable = rel.referencedTable ? getTableName(rel.referencedTable) : "unknown";
     const tables = [tableName, referencedTable].sort();
     return `${tables[0]}-${tables[1]}`;
   }
@@ -478,10 +451,7 @@ export abstract class BaseGenerator<
   /**
    * Parse a relation into a GeneratedRef
    */
-  protected parseRelation(
-    tableName: string,
-    relation: unknown,
-  ): GeneratedRef | undefined {
+  protected parseRelation(tableName: string, relation: unknown): GeneratedRef | undefined {
     try {
       const rel = relation as {
         referencedTable?: Table;
@@ -555,12 +525,14 @@ export abstract class BaseGenerator<
   protected getIndexColumns(idx: unknown): string[] {
     try {
       const config = (idx as { config: { columns: Array<{ name?: string }> } }).config;
-      return config.columns.map((c) => {
-        if (typeof c === "object" && c !== null && "name" in c) {
-          return c.name as string;
-        }
-        return "";
-      }).filter(Boolean);
+      return config.columns
+        .map((c) => {
+          if (typeof c === "object" && c !== null && "name" in c) {
+            return c.name as string;
+          }
+          return "";
+        })
+        .filter(Boolean);
     } catch {
       return [];
     }

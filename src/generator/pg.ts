@@ -55,7 +55,9 @@ export class PgGenerator<
 
       for (const column of Object.values(columns)) {
         if (column instanceof PgEnumColumn) {
-          const enumObj = (column as unknown as { enum: { enumName: string; enumValues: string[] } }).enum;
+          const enumObj = (
+            column as unknown as { enum: { enumName: string; enumValues: string[] } }
+          ).enum;
           if (enumObj && !enums.has(enumObj.enumName)) {
             enums.set(enumObj.enumName, enumObj.enumValues);
           }
