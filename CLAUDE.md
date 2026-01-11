@@ -1,108 +1,63 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Claude Code 向けの開発ガイド。
 
-## Project Overview
+## 概要
 
-**drizzle-docs-generator** - A CLI tool that generates DBML (Database Markup Language) files from Drizzle ORM schema definitions.
+**drizzle-docs-generator** - Drizzle ORM スキーマから DBML を生成する CLI。JSDoc コメントを Note 句として出力できる。
 
-### Key Features
+詳細は [README.md](./README.md) / [README.ja.md](./README.ja.md) を参照。
 
-- Parse Drizzle ORM schema files written in TypeScript
-- Generate DBML format output for database documentation
-- Use AST (Abstract Syntax Tree) parsing to extract schema information
-- Support comment clauses in DBML output (not natively supported by Drizzle)
+## パッケージマネージャ
 
-### Technical Approach
+**pnpm** を使用（v10.24.0）。npm/yarn は使わないこと。
 
-- **AST Parsing**: Use TypeScript Compiler API or @babel/parser to parse Drizzle schema files
-- **Schema Analysis**: Extract table definitions, columns, relationships, and comments from the AST
-- **DBML Generation**: Transform parsed schema into valid DBML format
-- **CLI Interface**: Provide command-line interface for easy usage
-
-## Package Manager
-
-This project uses **pnpm** (v10.24.0) as specified in `package.json`. Always use `pnpm` commands instead of `npm` or `yarn`.
-
-## Development Commands
+## コマンド
 
 ```bash
-pnpm install              # Install dependencies
-pnpm build                # Build the project (when configured)
-pnpm test                 # Run tests (when configured)
-pnpm dev                  # Run in development mode (when configured)
-pnpm format               # Format code with oxfmt
-pnpm lint                 # Run linter
-pnpm typecheck            # Run TypeScript type checking
+pnpm install     # 依存関係インストール
+pnpm build       # ビルド
+pnpm test        # テスト (watch mode)
+pnpm test:run    # テスト (1回)
+pnpm dev         # ビルド (watch mode)
+pnpm format      # フォーマット (oxfmt)
+pnpm lint        # リント (oxlint)
+pnpm typecheck   # 型チェック
 ```
 
-## Before Committing
-
-**Always run the following commands before committing changes:**
+## コミット前に必ず実行
 
 ```bash
-pnpm format               # Format code
-pnpm lint                 # Check for lint errors
-pnpm typecheck            # Check for type errors
-pnpm test:run             # Run tests
+pnpm format && pnpm lint && pnpm typecheck && pnpm test:run
 ```
 
-This ensures CI will pass.
+## アーキテクチャ
 
-## Architecture
+### src/parser/
 
-### Core Components (To Be Implemented)
+- `comments.ts`: TypeScript Compiler API で JSDoc コメントを抽出
+- `relations.ts`: relations() 定義を抽出
+- `index.ts`: 公開 API
 
-1. **Schema Parser** (`src/parser/`)
-   - Read Drizzle schema files (.ts)
-   - Parse TypeScript code into AST
-   - Extract schema definitions (tables, columns, relations)
-   - Handle JSDoc comments for additional metadata
+### src/generator/
 
-2. **DBML Generator** (`src/generator/`)
-   - Transform parsed schema into DBML format
-   - Generate table definitions with columns and types
-   - Include relationships (foreign keys, references)
-   - Add comment clauses from JSDoc or inline comments
+- `common.ts`: 基底クラス、DBML ビルダー
+- `pg.ts`, `mysql.ts`, `sqlite.ts`: 各 DB 用ジェネレータ
+- `index.ts`: 公開 API
 
-3. **CLI Interface** (`src/cli/`)
-   - Parse command-line arguments
-   - Handle file input/output
-   - Provide error messages and usage help
+### src/cli/
 
-### Key Dependencies (Planned)
+- `index.ts`: Commander.js で実装した CLI
 
-- TypeScript Compiler API (`typescript`) for AST parsing
-- CLI framework (e.g., `commander`, `yargs`)
-- File system operations (`fs-extra` or Node.js `fs/promises`)
-- Drizzle ORM types for reference
+## 依存関係
 
-## DBML Format Reference
+- `typescript`: AST パース
+- `commander`: CLI フレームワーク
+- `drizzle-orm`: Drizzle ORM v1 beta
 
-DBML supports:
+## メモ
 
-- Table definitions with columns
-- Column types, constraints, and default values
-- Primary keys and indexes
-- Foreign key relationships
-- Table and column comments (Note clause)
-
-Example DBML output:
-
-```dbml
-Table users {
-  id integer [primary key]
-  name varchar
-  email varchar [unique, not null]
-
-  Note: 'User accounts table'
-}
-```
-
-## Notes
-
-- The project uses ISC license
-- Drizzle natively supports `drizzle-kit push` with `--dbml` flag, but it doesn't include comments
-- This tool extends that functionality by parsing comments from source code
-- use `gh` for view PR, create Issue, etc...
-  - :warning: use `gh` with `--repo rikeda71/drizzle-docs-generator` option
+- ライセンス: MIT
+- Node.js >= 24
+- Drizzle ORM v1 beta (1.0.0-beta.10+)
+- `gh` コマンド使用時は `--repo rikeda71/drizzle-docs-generator` オプションを付けること

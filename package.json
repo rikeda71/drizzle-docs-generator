@@ -16,7 +16,7 @@
   "bugs": {
     "url": "https://github.com/rikeda71/drizzle-docs-generator/issues"
   },
-  "license": "ISC",
+  "license": "MIT",
   "author": "rikeda71",
   "repository": {
     "type": "git",
