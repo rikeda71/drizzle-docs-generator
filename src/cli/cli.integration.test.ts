@@ -377,3 +377,84 @@ describe("CLI Integration Tests", () => {
     });
   });
 });
+
+// RQBv2 (defineRelations) Integration Tests
+const PG_RQBV2_SCHEMA = join(EXAMPLES_DIR, "pg-rqbv2/schema.ts");
+
+describe("RQBv2 (defineRelations) Integration Tests", () => {
+  beforeAll(() => {
+    expect(existsSync(PG_RQBV2_SCHEMA)).toBe(true);
+  });
+
+  it("should generate DBML for RQBv2 schema", async () => {
+    const result = await runGenerate(PG_RQBV2_SCHEMA, "postgresql");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).not.toBe("");
+
+    // Validate output structure
+    expect(hasAllTables(result.stdout, EXPECTED_TABLES, '"')).toBe(true);
+    expect(countTables(result.stdout)).toBe(5);
+  });
+
+  it("should generate all expected columns for users table", async () => {
+    const result = await runGenerate(PG_RQBV2_SCHEMA, "postgresql");
+
+    expect(result.exitCode).toBe(0);
+    expect(
+      hasAllColumns(result.stdout, "users", ["id", "name", "email", "active", "created_at"], '"'),
+    ).toBe(true);
+  });
+
+  it("should generate foreign key references without -r flag", async () => {
+    const result = await runGenerate(PG_RQBV2_SCHEMA, "postgresql");
+
+    expect(result.exitCode).toBe(0);
+    // FK-based refs from table constraints
+    expect(hasReference(result.stdout, "posts", "author_id", "users", "id", '"')).toBe(true);
+  });
+
+  it("should extract JSDoc comments as Notes", async () => {
+    const result = await runGenerate(PG_RQBV2_SCHEMA, "postgresql");
+
+    expect(result.exitCode).toBe(0);
+    // Table-level note
+    expect(hasTableNote(result.stdout, "users", '"')).toBe(true);
+    // Column-level note
+    expect(result.stdout).toContain("Auto-generated unique identifier");
+  });
+
+  it("should generate relations with -r flag using defineRelations", async () => {
+    const result = await runGenerate(PG_RQBV2_SCHEMA, "postgresql", { relational: true });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+
+    // Should have Ref statements from defineRelations
+    const refCount = countRefs(result.stdout);
+    expect(refCount).toBeGreaterThan(0);
+
+    // Check specific relations from defineRelations
+    // posts.author -> users
+    expect(hasReference(result.stdout, "posts", "author_id", "users", "id", '"')).toBe(true);
+    // comments.post -> posts
+    expect(hasReference(result.stdout, "comments", "post_id", "posts", "id", '"')).toBe(true);
+    // comments.author -> users
+    expect(hasReference(result.stdout, "comments", "author_id", "users", "id", '"')).toBe(true);
+  });
+
+  it("should output to file with -o flag", async () => {
+    const outputFile = join(TEST_OUTPUT_DIR, "rqbv2-output.dbml");
+    const result = await runGenerate(PG_RQBV2_SCHEMA, "postgresql", { output: outputFile });
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(outputFile)).toBe(true);
+
+    const content = readFileSync(outputFile, "utf-8");
+    expect(hasAllTables(content, EXPECTED_TABLES, '"')).toBe(true);
+
+    // Cleanup
+    rmSync(outputFile, { force: true });
+  });
+});

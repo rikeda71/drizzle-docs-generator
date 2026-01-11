@@ -215,15 +215,40 @@ export abstract class BaseGenerator<
 
   /**
    * Get all RQBv2 relation entries from schema
+   * Handles both individual entries and the full defineRelations() result object
    */
   protected getRQBv2RelationEntries(): RQBv2RelationEntry[] {
     const entries: RQBv2RelationEntry[] = [];
     for (const value of Object.values(this.schema)) {
+      // Check if it's an individual RQBv2 entry
       if (this.isRQBv2RelationEntry(value)) {
         entries.push(value);
       }
+      // Check if it's the full defineRelations() result object
+      // (an object where each value is an RQBv2 entry)
+      else if (this.isRQBv2Object(value)) {
+        for (const entry of Object.values(value as Record<string, unknown>)) {
+          if (this.isRQBv2RelationEntry(entry)) {
+            entries.push(entry);
+          }
+        }
+      }
     }
     return entries;
+  }
+
+  /**
+   * Check if a value is a full RQBv2 object (defineRelations() result)
+   * This is an object where all values are RQBv2RelationEntry objects
+   */
+  protected isRQBv2Object(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return false;
+    }
+    const obj = value as Record<string, unknown>;
+    const values = Object.values(obj);
+    // Must have at least one entry and all must be RQBv2 entries
+    return values.length > 0 && values.every((v) => this.isRQBv2RelationEntry(v));
   }
 
   /**
