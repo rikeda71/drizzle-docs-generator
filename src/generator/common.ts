@@ -33,22 +33,39 @@ export class DbmlBuilder {
   private lines: string[] = [];
   private indentLevel = 0;
 
+  /**
+   * Increase the indentation level by one
+   * @returns This instance for method chaining
+   */
   indent(): this {
     this.indentLevel++;
     return this;
   }
 
+  /**
+   * Decrease the indentation level by one (minimum 0)
+   * @returns This instance for method chaining
+   */
   dedent(): this {
     this.indentLevel = Math.max(0, this.indentLevel - 1);
     return this;
   }
 
+  /**
+   * Add a line with the current indentation level
+   * @param content - The content to add (empty string adds a blank line)
+   * @returns This instance for method chaining
+   */
   line(content: string = ""): this {
     const indent = "  ".repeat(this.indentLevel);
     this.lines.push(content ? `${indent}${content}` : "");
     return this;
   }
 
+  /**
+   * Build the final DBML string from all added lines
+   * @returns The complete DBML content as a string
+   */
   build(): string {
     return this.lines.join("\n");
   }
@@ -91,6 +108,10 @@ export abstract class BaseGenerator<
   protected source: string | undefined;
   protected abstract dialectConfig: DialectConfig;
 
+  /**
+   * Create a new generator instance
+   * @param options - Configuration options including schema, relational mode, source code, and comments
+   */
   constructor(options: GenerateOptions<TSchema>) {
     this.schema = options.schema;
     this.relational = options.relational ?? false;
@@ -110,7 +131,14 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Generate complete DBML output
+   * Generate complete DBML output from the schema
+   *
+   * Creates DBML representation including:
+   * - Table definitions with columns, indexes, and constraints
+   * - Foreign key references (from table config or relations)
+   * - Comments for tables and columns
+   *
+   * @returns The complete DBML string
    */
   generate(): string {
     const dbml = new DbmlBuilder();
@@ -132,7 +160,7 @@ export abstract class BaseGenerator<
       }
       // Fall back to v0 relations() with AST parsing
       else if (v0Relations.length > 0 || this.parsedRelations) {
-        this.generateRelationalRefsFromV0(dbml, v0Relations);
+        this.generateRelationalRefsFromV0();
       }
     }
 
@@ -146,6 +174,11 @@ export abstract class BaseGenerator<
 
   /**
    * Get all tables from schema
+   *
+   * Extracts all Drizzle table objects from the schema by checking each value
+   * with isTable() method.
+   *
+   * @returns Array of table objects
    */
   protected getTables(): Table[] {
     const tables: Table[] = [];
@@ -159,6 +192,12 @@ export abstract class BaseGenerator<
 
   /**
    * Check if a value is a Drizzle table
+   *
+   * Validates whether a value is a table instance from any supported dialect
+   * (PostgreSQL, MySQL, or SQLite).
+   *
+   * @param value - The value to check
+   * @returns True if value is a Drizzle table
    */
   protected isTable(value: unknown): boolean {
     return is(value, PgTable) || is(value, MySqlTable) || is(value, SQLiteTable);
@@ -166,6 +205,11 @@ export abstract class BaseGenerator<
 
   /**
    * Get all v0 relations from schema (legacy relations() API)
+   *
+   * Extracts legacy relations defined using the old relations() API.
+   * These are identified by having 'table' and 'config' properties.
+   *
+   * @returns Array of legacy relation objects
    */
   protected getV0Relations(): LegacyRelations[] {
     const relations: LegacyRelations[] = [];
@@ -179,6 +223,11 @@ export abstract class BaseGenerator<
 
   /**
    * Check if a value is a Drizzle v0 relations object (from relations())
+   *
+   * Validates the legacy relations() format by checking for 'table' and 'config' properties.
+   *
+   * @param value - The value to check
+   * @returns True if value is a legacy relations object
    */
   protected isV0Relations(value: unknown): boolean {
     if (typeof value !== "object" || value === null) {
@@ -194,7 +243,12 @@ export abstract class BaseGenerator<
 
   /**
    * Check if a value is a v1 relation entry (from defineRelations())
-   * Uses official Drizzle v1 types: TableRelationalConfig with Relation instances
+   *
+   * Uses official Drizzle v1 types: TableRelationalConfig with Relation instances.
+   * Validates the structure has 'table', 'name', and 'relations' properties with valid types.
+   *
+   * @param value - The value to check
+   * @returns True if value is a v1 relation entry
    */
   protected isV1RelationEntry(value: unknown): value is TableRelationalConfig {
     if (typeof value !== "object" || value === null) {
@@ -224,7 +278,11 @@ export abstract class BaseGenerator<
 
   /**
    * Get all v1 relation entries from schema (defineRelations() API)
-   * Handles both individual entries and the full defineRelations() result object
+   *
+   * Handles both individual entries and the full defineRelations() result object.
+   * Extracts relation configurations that use the modern v1 API with official types.
+   *
+   * @returns Array of v1 relation entries
    */
   protected getV1RelationEntries(): TableRelationalConfig[] {
     const entries: TableRelationalConfig[] = [];
@@ -248,7 +306,12 @@ export abstract class BaseGenerator<
 
   /**
    * Check if a value is a full v1 defineRelations() result object
-   * This is an object where all values are TableRelationalConfig objects
+   *
+   * This is an object where all values are TableRelationalConfig objects.
+   * Used to detect the full result of calling defineRelations() in v1.
+   *
+   * @param value - The value to check
+   * @returns True if value is a full defineRelations() result
    */
   protected isV1DefineRelationsResult(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -261,7 +324,13 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Generate a table definition
+   * Generate a table definition in DBML format
+   *
+   * Creates the complete table definition including columns, indexes, constraints,
+   * and table-level comments. Also collects foreign keys if not in relational mode.
+   *
+   * @param dbml - The DBML builder to add the table to
+   * @param table - The Drizzle table to generate
    */
   protected generateTable(dbml: DbmlBuilder, table: Table): void {
     const tableName = getTableName(table);
@@ -301,7 +370,13 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Get table configuration (to be overridden by dialect-specific generators)
+   * Get table configuration from a Drizzle table
+   *
+   * Extracts indexes, primary keys, unique constraints, and foreign keys
+   * from the table using the appropriate dialect-specific config getter.
+   *
+   * @param table - The Drizzle table to get configuration from
+   * @returns Table configuration or undefined if dialect is not supported
    */
   protected getTableConfig(table: Table): TableConfig | undefined {
     // Detect dialect and use appropriate config getter
@@ -336,7 +411,14 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Generate a column definition
+   * Generate a column definition in DBML format
+   *
+   * Creates a column line with type and attributes (primary key, not null, unique, etc.)
+   * and includes column-level comments if available.
+   *
+   * @param dbml - The DBML builder to add the column to
+   * @param column - The Drizzle column to generate
+   * @param tableName - Optional table name for looking up comments
    */
   protected generateColumn(dbml: DbmlBuilder, column: AnyColumn, tableName?: string): void {
     const name = this.dialectConfig.escapeName(column.name);
@@ -353,6 +435,9 @@ export abstract class BaseGenerator<
 
   /**
    * Get the SQL type for a column
+   *
+   * @param column - The column to get the SQL type from
+   * @returns The SQL type string (e.g., "varchar", "integer")
    */
   protected getColumnType(column: AnyColumn): string {
     return column.getSQLType();
@@ -360,6 +445,13 @@ export abstract class BaseGenerator<
 
   /**
    * Get column attributes for DBML
+   *
+   * Extracts attributes like primary key, not null, unique, increment, default value,
+   * and note from the column. Uses column metadata and comments if available.
+   *
+   * @param column - The column to get attributes from
+   * @param tableName - Optional table name for looking up comments
+   * @returns Array of attribute strings for DBML format
    */
   protected getColumnAttributes(column: AnyColumn, tableName?: string): string[] {
     const attrs: string[] = [];
@@ -395,6 +487,9 @@ export abstract class BaseGenerator<
 
   /**
    * Format attributes into a string
+   *
+   * @param attrs - Array of attribute strings
+   * @returns Comma-separated attribute string
    */
   protected formatAttributes(attrs: string[]): string {
     return attrs.join(", ");
@@ -402,6 +497,12 @@ export abstract class BaseGenerator<
 
   /**
    * Get the default value for a column
+   *
+   * Extracts and formats the default value from a column, handling SQL expressions,
+   * objects, and primitive values. Returns undefined if no default value exists.
+   *
+   * @param column - The column to get the default value from
+   * @returns Formatted default value string or undefined
    */
   protected getDefaultValue(column: AnyColumn): string | undefined {
     if (!column.hasDefault) {
@@ -453,6 +554,12 @@ export abstract class BaseGenerator<
 
   /**
    * Generate indexes block from table configuration
+   *
+   * Creates the indexes block containing primary keys, unique constraints,
+   * and regular indexes with their respective attributes.
+   *
+   * @param dbml - The DBML builder to add the indexes block to
+   * @param tableConfig - The table configuration containing index information
    */
   protected generateIndexesBlock(dbml: DbmlBuilder, tableConfig: TableConfig): void {
     const { indexes, primaryKeys, uniqueConstraints } = tableConfig;
@@ -503,6 +610,12 @@ export abstract class BaseGenerator<
 
   /**
    * Collect foreign keys from table configuration
+   *
+   * Parses all foreign key definitions from the table config and adds them
+   * to the generatedRefs collection for later output.
+   *
+   * @param tableName - The name of the source table
+   * @param foreignKeys - Array of foreign key definitions from table config
    */
   protected collectForeignKeysFromConfig(tableName: string, foreignKeys: unknown[]): void {
     for (const fk of foreignKeys) {
@@ -515,6 +628,13 @@ export abstract class BaseGenerator<
 
   /**
    * Parse a foreign key into a GeneratedRef
+   *
+   * Extracts foreign key information (source/target tables and columns, actions)
+   * and converts it to a GeneratedRef object for DBML output.
+   *
+   * @param tableName - The name of the source table
+   * @param fk - The foreign key definition to parse
+   * @returns GeneratedRef object or undefined if parsing fails
    */
   protected parseForeignKey(tableName: string, fk: unknown): GeneratedRef | undefined {
     try {
@@ -548,6 +668,11 @@ export abstract class BaseGenerator<
 
   /**
    * Get a mapping from variable names to table names in the schema
+   *
+   * Creates a map from TypeScript variable names (e.g., "usersTable") to
+   * actual database table names (e.g., "users").
+   *
+   * @returns Map of variable names to table names
    */
   protected getTableNameMapping(): Map<string, string> {
     const mapping = new Map<string, string>();
@@ -562,7 +687,12 @@ export abstract class BaseGenerator<
 
   /**
    * Get a mapping from TypeScript property names to database column names for a table
-   * e.g., { authorId: "author_id" }
+   *
+   * Creates a map from TypeScript property names (e.g., "authorId") to
+   * actual database column names (e.g., "author_id").
+   *
+   * @param tableVarName - The variable name of the table in the schema
+   * @returns Map of property names to column names
    */
   protected getColumnNameMapping(tableVarName: string): Map<string, string> {
     const mapping = new Map<string, string>();
@@ -578,7 +708,15 @@ export abstract class BaseGenerator<
 
   /**
    * Check if there's a reverse one() relation (B->A when we have A->B)
-   * Used to detect one-to-one relationships
+   *
+   * Used to detect one-to-one relationships by checking if both tables
+   * have one() relations pointing to each other.
+   *
+   * @param sourceTable - The source table variable name
+   * @param targetTable - The target table variable name
+   * @param sourceFields - The source table's field names
+   * @param targetReferences - The target table's reference column names
+   * @returns True if a reverse one() relation exists
    */
   protected hasReverseOneRelation(
     sourceTable: string,
@@ -618,6 +756,10 @@ export abstract class BaseGenerator<
 
   /**
    * Helper to check if two arrays are equal
+   *
+   * @param a - First array
+   * @param b - Second array
+   * @returns True if arrays have same length and same elements in order
    */
   private arraysEqual(a: string[], b: string[]): boolean {
     if (a.length !== b.length) return false;
@@ -632,7 +774,7 @@ export abstract class BaseGenerator<
    *
    * Detects one-to-one relationships when bidirectional one() relations exist.
    */
-  protected generateRelationalRefsFromV0(_dbml: DbmlBuilder, _relations: LegacyRelations[]): void {
+  protected generateRelationalRefsFromV0(): void {
     if (!this.parsedRelations || this.parsedRelations.relations.length === 0) {
       return;
     }
@@ -702,7 +844,12 @@ export abstract class BaseGenerator<
 
   /**
    * Generate references from v1 defineRelations() entries
-   * Uses official Drizzle v1 types (TableRelationalConfig, Relation, One)
+   *
+   * Uses official Drizzle v1 types (TableRelationalConfig, Relation, One).
+   * Processes One relations to extract foreign key information and generates
+   * DBML Ref lines. Detects one-to-one relationships with bidirectional checks.
+   *
+   * @param entries - Array of v1 relation entries from defineRelations()
    */
   protected generateRelationalRefsFromV1(entries: TableRelationalConfig[]): void {
     const processedRefs = new Set<string>();
@@ -710,7 +857,7 @@ export abstract class BaseGenerator<
     for (const entry of entries) {
       const sourceTableName = getTableName(entry.table as Table);
 
-      for (const [_relationName, relation] of Object.entries(entry.relations)) {
+      for (const relation of Object.values(entry.relations)) {
         // Only process One relations as they define the FK direction
         // Many relations are the inverse and don't add new information
         if (!is(relation, One)) {
@@ -766,6 +913,16 @@ export abstract class BaseGenerator<
 
   /**
    * Check if there's a reverse One relation in v1 entries
+   *
+   * Detects one-to-one relationships by checking if the target table
+   * has a matching One relation pointing back to the source table.
+   *
+   * @param entries - All v1 relation entries
+   * @param fromTableName - The table to search for reverse relation
+   * @param toTableName - The expected target table of the reverse relation
+   * @param fromColumns - The expected source columns of the reverse relation
+   * @param toColumns - The expected target columns of the reverse relation
+   * @returns True if a matching reverse One relation exists
    */
   protected hasV1ReverseOneRelation(
     entries: TableRelationalConfig[],
@@ -809,6 +966,12 @@ export abstract class BaseGenerator<
 
   /**
    * Get unique key for a relation to avoid duplicates
+   *
+   * Creates a consistent key by sorting table names alphabetically.
+   *
+   * @param tableName - The source table name
+   * @param relation - The relation object
+   * @returns A unique key string for the relation
    */
   protected getRelationKey(tableName: string, relation: unknown): string {
     const rel = relation as { referencedTable?: Table };
@@ -819,6 +982,13 @@ export abstract class BaseGenerator<
 
   /**
    * Parse a relation into a GeneratedRef
+   *
+   * Extracts relation information from a legacy relation object and converts
+   * it to a GeneratedRef for DBML output.
+   *
+   * @param tableName - The source table name
+   * @param relation - The relation object to parse
+   * @returns GeneratedRef object or undefined if parsing fails
    */
   protected parseRelation(tableName: string, relation: unknown): GeneratedRef | undefined {
     try {
@@ -866,7 +1036,13 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Generate a reference line
+   * Generate a reference line in DBML format
+   *
+   * Creates a Ref line showing the relationship between tables with optional
+   * onDelete and onUpdate actions.
+   *
+   * @param dbml - The DBML builder to add the reference to
+   * @param ref - The reference definition to generate
    */
   protected generateRef(dbml: DbmlBuilder, ref: GeneratedRef): void {
     const from = `${this.dialectConfig.escapeName(ref.fromTable)}.${ref.fromColumns.map((c) => this.dialectConfig.escapeName(c)).join(", ")}`;
@@ -891,6 +1067,12 @@ export abstract class BaseGenerator<
 
   // Helper methods for extracting column information from constraints
 
+  /**
+   * Get column names from an index definition
+   *
+   * @param idx - The index definition to extract columns from
+   * @returns Array of column names in the index
+   */
   protected getIndexColumns(idx: unknown): string[] {
     try {
       const config = (idx as { config: { columns: Array<{ name?: string }> } }).config;
@@ -907,6 +1089,12 @@ export abstract class BaseGenerator<
     }
   }
 
+  /**
+   * Check if an index is unique
+   *
+   * @param idx - The index definition to check
+   * @returns True if the index has the unique flag
+   */
   protected isUniqueIndex(idx: unknown): boolean {
     try {
       const config = (idx as { config: { unique?: boolean } }).config;
@@ -916,6 +1104,12 @@ export abstract class BaseGenerator<
     }
   }
 
+  /**
+   * Get column names from a primary key constraint
+   *
+   * @param pk - The primary key definition to extract columns from
+   * @returns Array of column names in the primary key
+   */
   protected getPrimaryKeyColumns(pk: unknown): string[] {
     try {
       const columns = (pk as { columns: Array<{ name: string }> }).columns;
@@ -925,6 +1119,12 @@ export abstract class BaseGenerator<
     }
   }
 
+  /**
+   * Get column names from a unique constraint
+   *
+   * @param uc - The unique constraint definition to extract columns from
+   * @returns Array of column names in the unique constraint
+   */
   protected getUniqueConstraintColumns(uc: unknown): string[] {
     try {
       const columns = (uc as { columns: Array<{ name: string }> }).columns;
@@ -937,6 +1137,12 @@ export abstract class BaseGenerator<
 
 /**
  * Write DBML content to a file
+ *
+ * Creates the directory if it doesn't exist and writes the DBML content
+ * to the specified file path.
+ *
+ * @param filePath - The path to write the DBML file to
+ * @param content - The DBML content to write
  */
 export function writeDbmlFile(filePath: string, content: string): void {
   const resolvedPath = resolve(filePath);
@@ -947,6 +1153,11 @@ export function writeDbmlFile(filePath: string, content: string): void {
 
 /**
  * Escape a string for use in DBML single-quoted strings
+ *
+ * Escapes backslashes, single quotes, and newlines for proper DBML formatting.
+ *
+ * @param str - The string to escape
+ * @returns The escaped string safe for DBML
  */
 function escapeDbmlString(str: string): string {
   return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
