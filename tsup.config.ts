@@ -8,4 +8,5 @@ export default defineConfig({
   clean: true,
   target: "node18",
   shims: true,
+  external: ["typescript"],
 });
