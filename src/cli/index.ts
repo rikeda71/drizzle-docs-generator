@@ -8,15 +8,19 @@
 
 import { Command } from "commander";
 import { existsSync, readFileSync, watch } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { pgGenerate, mysqlGenerate, sqliteGenerate } from "../generator/index";
 
 const program = new Command();
 
-const packageJson = JSON.parse(
-  readFileSync(new URL("../../package.json", import.meta.url), "utf-8"),
-) as { version: string; description: string };
+// Use import.meta.dirname (Node 20.11+) to resolve package.json
+// This works correctly even after bundling
+const packageJsonPath = join(import.meta.dirname, "../../package.json");
+const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8")) as {
+  version: string;
+  description: string;
+};
 
 program.name("drizzle-docs").description(packageJson.description).version(packageJson.version);
 

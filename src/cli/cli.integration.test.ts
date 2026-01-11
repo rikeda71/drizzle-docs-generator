@@ -46,13 +46,6 @@ describe("CLI Integration Tests", () => {
     it("should generate DBML for PostgreSQL schema", async () => {
       const result = await runGenerate(PG_SCHEMA, "postgresql");
 
-      // Debug output for CI failures
-      if (result.exitCode !== 0) {
-        console.error("CLI stderr:", result.stderr);
-        console.error("CLI stdout:", result.stdout);
-        console.error("Schema path:", PG_SCHEMA);
-      }
-
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
       expect(result.stdout).not.toBe("");
