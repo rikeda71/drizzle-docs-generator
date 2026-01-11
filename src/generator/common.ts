@@ -57,6 +57,28 @@ export interface TableConfig {
 }
 
 /**
+ * RQBv2 relation entry structure (from defineRelations())
+ */
+export interface RQBv2RelationEntry {
+  table: Table;
+  name: string;
+  relations: Record<string, RQBv2Relation>;
+}
+
+/**
+ * RQBv2 individual relation structure
+ */
+export interface RQBv2Relation {
+  fieldName: string;
+  sourceColumns: AnyColumn[];
+  targetColumns: AnyColumn[];
+  sourceTable: Table;
+  targetTable: Table;
+  relationType: "one" | "many";
+  isReversed?: boolean;
+}
+
+/**
  * Base generator class for DBML generation
  */
 export abstract class BaseGenerator<
@@ -94,7 +116,8 @@ export abstract class BaseGenerator<
   generate(): string {
     const dbml = new DbmlBuilder();
     const tables = this.getTables();
-    const relations = this.getRelations();
+    const v0Relations = this.getRelations();
+    const rqbv2Entries = this.getRQBv2RelationEntries();
 
     // Generate tables
     for (const table of tables) {
@@ -102,9 +125,16 @@ export abstract class BaseGenerator<
       dbml.line();
     }
 
-    // Generate references from relations() definitions
-    if (this.relational && (relations.length > 0 || this.parsedRelations)) {
-      this.generateRelationalRefs(dbml, relations);
+    // Generate references from relations
+    if (this.relational) {
+      // Try RQBv2 (defineRelations) first - runtime object parsing
+      if (rqbv2Entries.length > 0) {
+        this.generateRelationalRefsFromRQBv2(rqbv2Entries);
+      }
+      // Fall back to v0 relations() with AST parsing
+      else if (v0Relations.length > 0 || this.parsedRelations) {
+        this.generateRelationalRefs(dbml, v0Relations);
+      }
     }
 
     // Add collected refs
@@ -149,18 +179,51 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Check if a value is a Drizzle relations object
+   * Check if a value is a Drizzle v0 relations object (from relations())
    */
   protected isRelations(value: unknown): boolean {
     if (typeof value !== "object" || value === null) {
       return false;
     }
-    // Relations objects have 'table' and 'config' properties
+    // v0 Relations objects have 'table' and 'config' properties
     return (
       "table" in value &&
       "config" in value &&
       typeof (value as Record<string, unknown>).config === "object"
     );
+  }
+
+  /**
+   * Check if a value is a RQBv2 relation entry (from defineRelations())
+   * RQBv2 entries have 'table', 'name', and 'relations' properties
+   */
+  protected isRQBv2RelationEntry(value: unknown): value is RQBv2RelationEntry {
+    if (typeof value !== "object" || value === null) {
+      return false;
+    }
+    const obj = value as Record<string, unknown>;
+    return (
+      "table" in obj &&
+      "name" in obj &&
+      typeof obj.name === "string" &&
+      "relations" in obj &&
+      typeof obj.relations === "object" &&
+      obj.relations !== null &&
+      this.isTable(obj.table)
+    );
+  }
+
+  /**
+   * Get all RQBv2 relation entries from schema
+   */
+  protected getRQBv2RelationEntries(): RQBv2RelationEntry[] {
+    const entries: RQBv2RelationEntry[] = [];
+    for (const value of Object.values(this.schema)) {
+      if (this.isRQBv2RelationEntry(value)) {
+        entries.push(value);
+      }
+    }
+    return entries;
   }
 
   /**
@@ -601,6 +664,111 @@ export abstract class BaseGenerator<
 
       this.generatedRefs.push(ref);
     }
+  }
+
+  /**
+   * Generate references from RQBv2 defineRelations() entries
+   * This parses the runtime relation objects directly
+   */
+  protected generateRelationalRefsFromRQBv2(entries: RQBv2RelationEntry[]): void {
+    const processedRefs = new Set<string>();
+
+    for (const entry of entries) {
+      const sourceTableName = getTableName(entry.table);
+
+      for (const [_relationName, relation] of Object.entries(entry.relations)) {
+        // Only process "one" relations as they define the FK direction
+        // "many" relations are the inverse and don't add new information
+        if (relation.relationType !== "one") {
+          continue;
+        }
+
+        // Skip reversed relations (they are auto-generated inverse relations)
+        if (relation.isReversed) {
+          continue;
+        }
+
+        // Get source and target column names
+        const sourceColumns = relation.sourceColumns.map((col) => col.name);
+        const targetColumns = relation.targetColumns.map((col) => col.name);
+
+        if (sourceColumns.length === 0 || targetColumns.length === 0) {
+          continue;
+        }
+
+        const targetTableName = getTableName(relation.targetTable);
+
+        // Create a unique key to avoid duplicate refs
+        const refKey = `${sourceTableName}.${sourceColumns.join(",")}->${targetTableName}.${targetColumns.join(",")}`;
+        const reverseRefKey = `${targetTableName}.${targetColumns.join(",")}->${sourceTableName}.${sourceColumns.join(",")}`;
+
+        if (processedRefs.has(refKey) || processedRefs.has(reverseRefKey)) {
+          continue;
+        }
+        processedRefs.add(refKey);
+
+        // Check if there's a reverse one() relation (indicating one-to-one)
+        const isOneToOne = this.hasRQBv2ReverseOneRelation(
+          entries,
+          targetTableName,
+          sourceTableName,
+          targetColumns,
+          sourceColumns,
+        );
+
+        const ref: GeneratedRef = {
+          fromTable: sourceTableName,
+          fromColumns: sourceColumns,
+          toTable: targetTableName,
+          toColumns: targetColumns,
+          type: isOneToOne ? "-" : ">",
+        };
+
+        this.generatedRefs.push(ref);
+      }
+    }
+  }
+
+  /**
+   * Check if there's a reverse one() relation in RQBv2 entries
+   */
+  protected hasRQBv2ReverseOneRelation(
+    entries: RQBv2RelationEntry[],
+    fromTableName: string,
+    toTableName: string,
+    fromColumns: string[],
+    toColumns: string[],
+  ): boolean {
+    const fromEntry = entries.find((e) => getTableName(e.table) === fromTableName);
+    if (!fromEntry) {
+      return false;
+    }
+
+    for (const relation of Object.values(fromEntry.relations)) {
+      if (relation.relationType !== "one") {
+        continue;
+      }
+
+      const relTargetName = getTableName(relation.targetTable);
+      if (relTargetName !== toTableName) {
+        continue;
+      }
+
+      const relSourceCols = relation.sourceColumns.map((col) => col.name);
+      const relTargetCols = relation.targetColumns.map((col) => col.name);
+
+      // Check if columns match in reverse
+      if (
+        relSourceCols.length === fromColumns.length &&
+        relTargetCols.length === toColumns.length &&
+        relSourceCols.every((col, i) => col === fromColumns[i]) &&
+        relTargetCols.every((col, i) => col === toColumns[i])
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
