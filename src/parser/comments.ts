@@ -1,5 +1,6 @@
 import * as ts from "typescript";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Comments for a single column
@@ -24,23 +25,55 @@ export interface SchemaComments {
 }
 
 /**
- * Extract JSDoc comments from a Drizzle schema source file
+ * Get all TypeScript files from a path (file or directory)
+ */
+function getTypeScriptFiles(sourcePath: string): string[] {
+  const stat = statSync(sourcePath);
+
+  if (stat.isFile()) {
+    return sourcePath.endsWith(".ts") ? [sourcePath] : [];
+  }
+
+  if (stat.isDirectory()) {
+    const files: string[] = [];
+    const entries = readdirSync(sourcePath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = join(sourcePath, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...getTypeScriptFiles(fullPath));
+      } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
+        files.push(fullPath);
+      }
+    }
+
+    return files;
+  }
+
+  return [];
+}
+
+/**
+ * Extract JSDoc comments from a Drizzle schema source file or directory
  *
- * Parses the TypeScript source file and extracts:
+ * Parses TypeScript source files and extracts:
  * - JSDoc comments on table definitions (e.g., pgTable, mysqlTable, sqliteTable)
  * - JSDoc comments on column definitions within tables
  *
- * @param sourceFilePath - Path to the TypeScript schema file
+ * @param sourcePath - Path to the TypeScript schema file or directory
  * @returns Extracted comments organized by table and column
  */
-export function extractComments(sourceFilePath: string): SchemaComments {
-  const sourceCode = readFileSync(sourceFilePath, "utf-8");
-  const sourceFile = ts.createSourceFile(sourceFilePath, sourceCode, ts.ScriptTarget.Latest, true);
-
+export function extractComments(sourcePath: string): SchemaComments {
   const comments: SchemaComments = { tables: {} };
+  const files = getTypeScriptFiles(sourcePath);
 
-  // Visit all nodes in the source file
-  visitNode(sourceFile, sourceFile, comments);
+  for (const filePath of files) {
+    const sourceCode = readFileSync(filePath, "utf-8");
+    const sourceFile = ts.createSourceFile(filePath, sourceCode, ts.ScriptTarget.Latest, true);
+
+    // Visit all nodes in the source file
+    visitNode(sourceFile, sourceFile, comments);
+  }
 
   return comments;
 }

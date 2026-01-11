@@ -15,13 +15,18 @@ export interface GenerateOptions<TSchema extends Record<string, unknown>> {
   /** If true, uses relations() definitions instead of foreign keys for references */
   relational?: boolean;
   /**
-   * Path to the source schema file for extracting JSDoc comments.
-   * If provided, comments will be extracted and included as DBML Note clauses.
+   * Path to the source schema file or directory for extracting JSDoc comments and relations.
+   * If a directory is provided, all .ts files will be processed recursively.
+   * Comments will be extracted and included as DBML Note clauses.
+   */
+  source?: string;
+  /**
+   * @deprecated Use `source` instead. Path to the source schema file.
    */
   sourceFile?: string;
   /**
    * Pre-extracted comments to use for DBML Note clauses.
-   * Alternative to sourceFile - use this if you've already extracted comments.
+   * Alternative to source - use this if you've already extracted comments.
    */
   comments?: SchemaComments;
 }

@@ -73,24 +73,25 @@ export abstract class BaseGenerator<
   protected generatedRefs: GeneratedRef[] = [];
   protected comments: SchemaComments | undefined;
   protected parsedRelations: SchemaRelations | undefined;
-  protected sourceFile: string | undefined;
+  protected source: string | undefined;
   protected abstract dialectConfig: DialectConfig;
 
   constructor(options: GenerateOptions<TSchema>) {
     this.schema = options.schema;
     this.relational = options.relational ?? false;
-    this.sourceFile = options.sourceFile;
+    // Support both 'source' and deprecated 'sourceFile'
+    this.source = options.source ?? options.sourceFile;
 
     // Initialize comments from options
     if (options.comments) {
       this.comments = options.comments;
-    } else if (options.sourceFile) {
-      this.comments = extractComments(options.sourceFile);
+    } else if (this.source) {
+      this.comments = extractComments(this.source);
     }
 
-    // Extract relations from source file if relational mode is enabled
-    if (this.relational && options.sourceFile) {
-      this.parsedRelations = extractRelations(options.sourceFile);
+    // Extract relations from source if relational mode is enabled
+    if (this.relational && this.source) {
+      this.parsedRelations = extractRelations(this.source);
     }
   }
 
@@ -486,10 +487,60 @@ export abstract class BaseGenerator<
   }
 
   /**
+   * Check if there's a reverse one() relation (B->A when we have A->B)
+   * Used to detect one-to-one relationships
+   */
+  protected hasReverseOneRelation(
+    sourceTable: string,
+    targetTable: string,
+    sourceFields: string[],
+    targetReferences: string[],
+  ): boolean {
+    if (!this.parsedRelations) return false;
+
+    // Look for a one() relation from targetTable to sourceTable
+    for (const relation of this.parsedRelations.relations) {
+      if (
+        relation.type === "one" &&
+        relation.sourceTable === targetTable &&
+        relation.targetTable === sourceTable &&
+        relation.fields.length > 0 &&
+        relation.references.length > 0
+      ) {
+        // Check if the fields/references are the reverse of each other
+        // A->B: fields=[A.col], references=[B.col]
+        // B->A: fields=[B.col], references=[A.col]
+        const reverseFields = relation.fields;
+        const reverseReferences = relation.references;
+
+        // The reverse relation's fields should match our references
+        // and the reverse relation's references should match our fields
+        if (
+          this.arraysEqual(reverseFields, targetReferences) &&
+          this.arraysEqual(reverseReferences, sourceFields)
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Helper to check if two arrays are equal
+   */
+  private arraysEqual(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) return false;
+    return a.every((val, i) => val === b[i]);
+  }
+
+  /**
    * Generate references from relations
    *
    * Uses TypeScript Compiler API to parse relations() definitions from source file
    * and extract fields/references to generate DBML Ref lines.
+   *
+   * Detects one-to-one relationships when bidirectional one() relations exist.
    */
   protected generateRelationalRefs(_dbml: DbmlBuilder, _relations: Relations[]): void {
     if (!this.parsedRelations || this.parsedRelations.relations.length === 0) {
@@ -528,20 +579,31 @@ export abstract class BaseGenerator<
       );
       const toColumns = parsedRelation.references.map((ref) => toColumnMapping.get(ref) || ref);
 
-      // Create a unique key to avoid duplicate refs
+      // Create a unique key to avoid duplicate refs (bidirectional)
       const refKey = `${fromTableName}.${fromColumns.join(",")}-${toTableName}.${toColumns.join(",")}`;
-      if (processedRefs.has(refKey)) {
+      const reverseRefKey = `${toTableName}.${toColumns.join(",")}-${fromTableName}.${fromColumns.join(",")}`;
+
+      if (processedRefs.has(refKey) || processedRefs.has(reverseRefKey)) {
         continue;
       }
       processedRefs.add(refKey);
 
+      // Check if this is a one-to-one relationship (bidirectional one())
+      const isOneToOne = this.hasReverseOneRelation(
+        parsedRelation.sourceTable,
+        parsedRelation.targetTable,
+        parsedRelation.fields,
+        parsedRelation.references,
+      );
+
       // Create GeneratedRef
+      // one-to-one: "-", many-to-one: ">"
       const ref: GeneratedRef = {
         fromTable: fromTableName,
         fromColumns,
         toTable: toTableName,
         toColumns,
-        type: ">", // many-to-one (the "one" side points to the referenced table)
+        type: isOneToOne ? "-" : ">",
       };
 
       this.generatedRefs.push(ref);

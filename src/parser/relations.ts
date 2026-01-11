@@ -1,5 +1,6 @@
 import * as ts from "typescript";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Parsed relation from relations() definition
@@ -25,24 +26,56 @@ export interface SchemaRelations {
 }
 
 /**
- * Extract relations from a Drizzle schema source file using AST parsing
+ * Get all TypeScript files from a path (file or directory)
+ */
+function getTypeScriptFiles(sourcePath: string): string[] {
+  const stat = statSync(sourcePath);
+
+  if (stat.isFile()) {
+    return sourcePath.endsWith(".ts") ? [sourcePath] : [];
+  }
+
+  if (stat.isDirectory()) {
+    const files: string[] = [];
+    const entries = readdirSync(sourcePath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = join(sourcePath, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...getTypeScriptFiles(fullPath));
+      } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
+        files.push(fullPath);
+      }
+    }
+
+    return files;
+  }
+
+  return [];
+}
+
+/**
+ * Extract relations from a Drizzle schema source file or directory using AST parsing
  *
- * Parses the TypeScript source file and extracts:
+ * Parses TypeScript source files and extracts:
  * - relations() function calls
  * - one() and many() relation definitions within them
  * - fields and references arrays for generating DBML Refs
  *
- * @param sourceFilePath - Path to the TypeScript schema file
+ * @param sourcePath - Path to the TypeScript schema file or directory
  * @returns Extracted relations
  */
-export function extractRelations(sourceFilePath: string): SchemaRelations {
-  const sourceCode = readFileSync(sourceFilePath, "utf-8");
-  const sourceFile = ts.createSourceFile(sourceFilePath, sourceCode, ts.ScriptTarget.Latest, true);
-
+export function extractRelations(sourcePath: string): SchemaRelations {
   const result: SchemaRelations = { relations: [] };
+  const files = getTypeScriptFiles(sourcePath);
 
-  // Visit all nodes to find relations() calls
-  visitNode(sourceFile, sourceFile, result);
+  for (const filePath of files) {
+    const sourceCode = readFileSync(filePath, "utf-8");
+    const sourceFile = ts.createSourceFile(filePath, sourceCode, ts.ScriptTarget.Latest, true);
+
+    // Visit all nodes to find relations() calls
+    visitNode(sourceFile, sourceFile, result);
+  }
 
   return result;
 }
