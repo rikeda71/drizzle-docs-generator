@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { pgGenerate } from "./pg.js";
 import {
   pgTable,
@@ -14,6 +14,9 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import type { SchemaComments } from "../parser/comments.js";
+import { writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 
 describe("pgGenerate", () => {
   it("should generate DBML for a simple table", () => {
@@ -181,5 +184,132 @@ describe("pgGenerate with relations", () => {
 
     expect(dbml).toContain('Table "users" {');
     expect(dbml).toContain('Table "posts" {');
+  });
+});
+
+const TEST_DIR = join(import.meta.dirname, "__test_fixtures__");
+
+describe("pgGenerate with comments", () => {
+  beforeAll(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterAll(() => {
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it("should include table Note from comments option", () => {
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const comments: SchemaComments = {
+      tables: {
+        users: {
+          comment: "User accounts table",
+          columns: {},
+        },
+      },
+    };
+
+    const dbml = pgGenerate({ schema: { users }, comments });
+
+    expect(dbml).toContain("Note: 'User accounts table'");
+  });
+
+  it("should include column note from comments option", () => {
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const comments: SchemaComments = {
+      tables: {
+        users: {
+          columns: {
+            id: { comment: "Primary key" },
+            name: { comment: "User display name" },
+          },
+        },
+      },
+    };
+
+    const dbml = pgGenerate({ schema: { users }, comments });
+
+    expect(dbml).toContain("note: 'Primary key'");
+    expect(dbml).toContain("note: 'User display name'");
+  });
+
+  it("should include both table and column notes", () => {
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const comments: SchemaComments = {
+      tables: {
+        users: {
+          comment: "User accounts",
+          columns: {
+            id: { comment: "Unique ID" },
+          },
+        },
+      },
+    };
+
+    const dbml = pgGenerate({ schema: { users }, comments });
+
+    expect(dbml).toContain("Note: 'User accounts'");
+    expect(dbml).toContain("note: 'Unique ID'");
+  });
+
+  it("should extract comments from sourceFile option", () => {
+    const schemaCode = `
+import { pgTable, serial, text } from "drizzle-orm/pg-core";
+
+/** Users table with account info */
+export const users = pgTable("users", {
+  /** Auto-generated ID */
+  id: serial("id").primaryKey(),
+  /** Full name */
+  name: text("name"),
+});
+`;
+    const filePath = join(TEST_DIR, "schema-with-comments.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const dbml = pgGenerate({ schema: { users }, sourceFile: filePath });
+
+    expect(dbml).toContain("Note: 'Users table with account info'");
+    expect(dbml).toContain("note: 'Auto-generated ID'");
+    expect(dbml).toContain("note: 'Full name'");
+  });
+
+  it("should escape special characters in comments", () => {
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+    });
+
+    const comments: SchemaComments = {
+      tables: {
+        users: {
+          comment: "User's table with 'quotes'",
+          columns: {
+            id: { comment: "It's the primary key" },
+          },
+        },
+      },
+    };
+
+    const dbml = pgGenerate({ schema: { users }, comments });
+
+    expect(dbml).toContain("Note: 'User\\'s table with \\'quotes\\''");
+    expect(dbml).toContain("note: 'It\\'s the primary key'");
   });
 });

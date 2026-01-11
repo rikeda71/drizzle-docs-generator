@@ -3,13 +3,13 @@
  *
  * A CLI tool that generates DBML files from Drizzle ORM schema definitions.
  *
- * TODO: コメント対応は構文木（TypeScript Compiler API）を使ったアプローチで実装予定
- * - parseSchemaWithComments() でソースファイルからJSDocコメントを抽出
- * - コメント情報をDBML出力時にNote句として自動反映
+ * Supports extracting JSDoc comments from source files and including them
+ * as DBML Note clauses using the TypeScript Compiler API.
  */
 
-// Schema parser (for AST-based comment extraction - future implementation)
-export { parseSchema } from "./parser/index.js";
+// Comment extraction from source files
+export { extractComments, parseSchema } from "./parser/index.js";
+export type { SchemaComments, TableComment, ColumnComment } from "./parser/index.js";
 
 // DBML generators
 export {

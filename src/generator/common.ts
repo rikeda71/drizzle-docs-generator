@@ -12,6 +12,7 @@ import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { GeneratedRef, GenerateOptions } from "../types.js";
+import { extractComments, type SchemaComments } from "../parser/comments.js";
 
 /**
  * Simple DBML string builder
@@ -69,11 +70,19 @@ export abstract class BaseGenerator<
   protected schema: TSchema;
   protected relational: boolean;
   protected generatedRefs: GeneratedRef[] = [];
+  protected comments: SchemaComments | undefined;
   protected abstract dialectConfig: DialectConfig;
 
   constructor(options: GenerateOptions<TSchema>) {
     this.schema = options.schema;
     this.relational = options.relational ?? false;
+
+    // Initialize comments from options
+    if (options.comments) {
+      this.comments = options.comments;
+    } else if (options.sourceFile) {
+      this.comments = extractComments(options.sourceFile);
+    }
   }
 
   /**
@@ -164,7 +173,7 @@ export abstract class BaseGenerator<
 
     // Generate columns
     for (const column of Object.values(columns)) {
-      this.generateColumn(dbml, column);
+      this.generateColumn(dbml, column, tableName);
     }
 
     // Get table configuration (indexes, constraints, etc.)
@@ -173,6 +182,13 @@ export abstract class BaseGenerator<
     // Generate indexes block if any
     if (tableConfig) {
       this.generateIndexesBlock(dbml, tableConfig);
+    }
+
+    // Add table-level Note if comment exists
+    const tableComment = this.comments?.tables[tableName]?.comment;
+    if (tableComment) {
+      dbml.line();
+      dbml.line(`Note: '${escapeDbmlString(tableComment)}'`);
     }
 
     dbml.dedent();
@@ -222,10 +238,10 @@ export abstract class BaseGenerator<
   /**
    * Generate a column definition
    */
-  protected generateColumn(dbml: DbmlBuilder, column: AnyColumn): void {
+  protected generateColumn(dbml: DbmlBuilder, column: AnyColumn, tableName?: string): void {
     const name = this.dialectConfig.escapeName(column.name);
     const type = this.getColumnType(column);
-    const attrs = this.getColumnAttributes(column);
+    const attrs = this.getColumnAttributes(column, tableName);
     const attrStr = this.formatAttributes(attrs);
 
     if (attrStr) {
@@ -245,7 +261,7 @@ export abstract class BaseGenerator<
   /**
    * Get column attributes for DBML
    */
-  protected getColumnAttributes(column: AnyColumn): string[] {
+  protected getColumnAttributes(column: AnyColumn, tableName?: string): string[] {
     const attrs: string[] = [];
 
     if (column.primary) {
@@ -264,6 +280,14 @@ export abstract class BaseGenerator<
     const defaultValue = this.getDefaultValue(column);
     if (defaultValue !== undefined) {
       attrs.push(`default: ${defaultValue}`);
+    }
+
+    // Add note attribute if column comment exists
+    if (tableName) {
+      const columnComment = this.comments?.tables[tableName]?.columns[column.name]?.comment;
+      if (columnComment) {
+        attrs.push(`note: '${escapeDbmlString(columnComment)}'`);
+      }
     }
 
     return attrs;
@@ -574,4 +598,11 @@ export function writeDbmlFile(filePath: string, content: string): void {
   const dir = dirname(resolvedPath);
   mkdirSync(dir, { recursive: true });
   writeFileSync(resolvedPath, content, "utf-8");
+}
+
+/**
+ * Escape a string for use in DBML single-quoted strings
+ */
+function escapeDbmlString(str: string): string {
+  return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
 }

@@ -1,7 +1,12 @@
 import type { ParsedSchema } from "../types.js";
 
+// Re-export comment extraction functionality
+export { extractComments } from "./comments.js";
+export type { SchemaComments, TableComment, ColumnComment } from "./comments.js";
+
 export function parseSchema(_filePath: string): ParsedSchema {
-  // TODO: Implement schema parsing using TypeScript Compiler API
+  // Note: Schema structure parsing is handled by Drizzle ORM at runtime.
+  // Use extractComments() to get JSDoc comments from source files.
   return {
     tables: [],
     relations: [],

@@ -1,4 +1,5 @@
 import type { AnyColumn, Relations, Table } from "drizzle-orm";
+import type { SchemaComments } from "./parser/comments.js";
 
 // Re-export Drizzle types for convenience
 export type { AnyColumn, Relations, Table };
@@ -13,6 +14,16 @@ export interface GenerateOptions<TSchema extends Record<string, unknown>> {
   out?: string;
   /** If true, uses relations() definitions instead of foreign keys for references */
   relational?: boolean;
+  /**
+   * Path to the source schema file for extracting JSDoc comments.
+   * If provided, comments will be extracted and included as DBML Note clauses.
+   */
+  sourceFile?: string;
+  /**
+   * Pre-extracted comments to use for DBML Note clauses.
+   * Alternative to sourceFile - use this if you've already extracted comments.
+   */
+  comments?: SchemaComments;
 }
 
 /**
