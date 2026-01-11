@@ -251,7 +251,7 @@ export const postsRelations = relations(posts, ({ one }) => ({
     const dbml = pgGenerate({
       schema: { users, posts, usersRelations, postsRelations },
       relational: true,
-      sourceFile: filePath,
+      source: filePath,
     });
 
     expect(dbml).toContain('Table "users" {');
@@ -322,7 +322,7 @@ export const commentsRelations = relations(comments, ({ one }) => ({
     const dbml = pgGenerate({
       schema: { users, posts, comments, commentsRelations },
       relational: true,
-      sourceFile: filePath,
+      source: filePath,
     });
 
     expect(dbml).toContain('Ref: "comments"."post_id" > "posts"."id"');
@@ -366,7 +366,7 @@ export const usersRelations = relations(users, ({ many }) => ({
     const dbml = pgGenerate({
       schema: { users, posts, usersRelations },
       relational: true,
-      sourceFile: filePath,
+      source: filePath,
     });
 
     // Should not contain Ref since many() doesn't have fields/references
@@ -585,7 +585,7 @@ describe("pgGenerate with comments", () => {
     expect(dbml).toContain("note: 'Unique ID'");
   });
 
-  it("should extract comments from sourceFile option", () => {
+  it("should extract comments from source option", () => {
     const schemaCode = `
 import { pgTable, serial, text } from "drizzle-orm/pg-core";
 
@@ -605,7 +605,7 @@ export const users = pgTable("users", {
       name: text("name"),
     });
 
-    const dbml = pgGenerate({ schema: { users }, sourceFile: filePath });
+    const dbml = pgGenerate({ schema: { users }, source: filePath });
 
     expect(dbml).toContain("Note: 'Users table with account info'");
     expect(dbml).toContain("note: 'Auto-generated ID'");

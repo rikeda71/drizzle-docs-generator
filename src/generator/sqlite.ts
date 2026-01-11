@@ -39,9 +39,9 @@ export class SqliteGenerator<
  * console.log(dbml);
  * ```
  *
- * To include JSDoc comments as DBML Note clauses, use the `sourceFile` option:
+ * To include JSDoc comments as DBML Note clauses, use the `source` option:
  * ```typescript
- * const dbml = sqliteGenerate({ schema: { users }, sourceFile: "./schema.ts" });
+ * const dbml = sqliteGenerate({ schema: { users }, source: "./schema.ts" });
  * ```
  */
 export function sqliteGenerate<TSchema extends Record<string, unknown>>(

@@ -21,10 +21,6 @@ export interface GenerateOptions<TSchema extends Record<string, unknown>> {
    */
   source?: string;
   /**
-   * @deprecated Use `source` instead. Path to the source schema file.
-   */
-  sourceFile?: string;
-  /**
    * Pre-extracted comments to use for DBML Note clauses.
    * Alternative to source - use this if you've already extracted comments.
    */

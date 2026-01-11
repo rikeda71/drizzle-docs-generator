@@ -79,8 +79,7 @@ export abstract class BaseGenerator<
   constructor(options: GenerateOptions<TSchema>) {
     this.schema = options.schema;
     this.relational = options.relational ?? false;
-    // Support both 'source' and deprecated 'sourceFile'
-    this.source = options.source ?? options.sourceFile;
+    this.source = options.source;
 
     // Initialize comments from options
     if (options.comments) {
