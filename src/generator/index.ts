@@ -1,5 +1,28 @@
-import type { ParsedSchema, Table, Column } from "../types.js";
+/**
+ * DBML Generator Module
+ *
+ * Provides functions to generate DBML from Drizzle ORM schema definitions.
+ * Supports PostgreSQL, MySQL, and SQLite dialects.
+ *
+ * TODO: コメント対応は構文木（TypeScript Compiler API）を使ったアプローチで実装予定
+ * - parseSchemaWithComments() 関数でソースファイルからJSDocコメントを抽出
+ * - コメント情報をDBML出力時にNote句として追加
+ * - テーブルコメントとカラムコメントの両方に対応
+ */
 
+export { pgGenerate, PgGenerator } from "./pg.js";
+export { mysqlGenerate, MySqlGenerator } from "./mysql.js";
+export { sqliteGenerate, SqliteGenerator } from "./sqlite.js";
+export { BaseGenerator, DbmlBuilder, writeDbmlFile } from "./common.js";
+
+// Re-export legacy function for backward compatibility
+import type { ParsedSchema, Column } from "../types.js";
+
+/**
+ * Generate DBML from a parsed schema (legacy API)
+ *
+ * @deprecated Use pgGenerate, mysqlGenerate, or sqliteGenerate instead
+ */
 export function generateDbml(schema: ParsedSchema): string {
   const lines: string[] = [];
 
@@ -11,7 +34,13 @@ export function generateDbml(schema: ParsedSchema): string {
   return lines.join("\n");
 }
 
-function generateTable(table: Table): string {
+interface LegacyTable {
+  name: string;
+  columns: Column[];
+  comment?: string;
+}
+
+function generateTable(table: LegacyTable): string {
   const lines: string[] = [];
 
   lines.push(`Table ${table.name} {`);
