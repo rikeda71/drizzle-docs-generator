@@ -1,6 +1,6 @@
 {
   "name": "drizzle-docs-generator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A CLI tool that generates DBML files from Drizzle ORM schema definitions.",
   "keywords": [
     "cli",
@@ -50,13 +50,13 @@
   },
   "dependencies": {
     "commander": "^14.0.2",
-    "drizzle-orm": "1.0.0-beta.10-42c284e"
+    "drizzle-orm": "1.0.0-beta.10-42c284e",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.7",
     "oxfmt": "^0.23.0",
     "oxlint": "^1.38.0",
-    "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.0.16"
