@@ -21,7 +21,7 @@ import {
   unique,
   index,
 } from "drizzle-orm/sqlite-core";
-import { relations } from "drizzle-orm";
+import { relations } from "drizzle-orm/_relations";
 
 /** User accounts table storing basic user information */
 export const users = sqliteTable(

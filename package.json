@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "commander": "^14.0.2",
-    "drizzle-orm": "^0.44.2"
+    "drizzle-orm": "1.0.0-beta.10-42c284e"
   },
   "devDependencies": {
     "@types/node": "^24.10.7",

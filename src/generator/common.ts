@@ -1,11 +1,5 @@
-import {
-  type AnyColumn,
-  type Relations,
-  type Table,
-  getTableColumns,
-  getTableName,
-  is,
-} from "drizzle-orm";
+import { type AnyColumn, type Table, getTableColumns, getTableName, is } from "drizzle-orm";
+import type { Relations } from "drizzle-orm/_relations";
 import { PgTable, getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
 import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/mysql-core";
 import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
