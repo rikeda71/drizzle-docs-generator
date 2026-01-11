@@ -38,6 +38,7 @@
     "dev": "vite build --watch",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "oxlint",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
