@@ -56,8 +56,8 @@ export const users = pgTable("users", {
 
 ```dbml
 Table users {
-  id serial [pk, increment]
-  name text [not null]
+  id serial [pk, increment, note: 'ユーザーID']
+  name text [not null, note: 'ユーザー名']
 
   Note: 'ユーザーテーブル'
 }

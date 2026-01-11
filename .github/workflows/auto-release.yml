@@ -72,7 +72,31 @@ jobs:
         if: steps.check-tag.outputs.exists == 'false'
         run: pnpm test:integration
 
-      - name: Create tag and draft release
+      - name: Get latest draft release
+        if: steps.check-tag.outputs.exists == 'false'
+        id: get-draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DRAFT_RELEASE=$(gh release list --limit 100 --json isDraft,tagName,body | jq -r '.[] | select(.isDraft == true) | select(.tagName == "v${{ steps.package-version.outputs.version_number }}") | .body' | head -1)
+          if [ -z "$DRAFT_RELEASE" ]; then
+            echo "No draft release found, will generate release notes"
+            echo "has_draft=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_draft=true" >> $GITHUB_OUTPUT
+            echo "draft_body<<EOF" >> $GITHUB_OUTPUT
+            echo "$DRAFT_RELEASE" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Delete draft release if exists
+        if: steps.check-tag.outputs.exists == 'false' && steps.get-draft.outputs.has_draft == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete "v${{ steps.package-version.outputs.version_number }}" --yes || true
+
+      - name: Create tag
         if: steps.check-tag.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,13 +106,22 @@ jobs:
           git tag -a "${{ steps.package-version.outputs.version }}" -m "Release ${{ steps.package-version.outputs.version }}"
           git push origin "${{ steps.package-version.outputs.version }}"
 
-      - name: Create GitHub Release
-        if: steps.check-tag.outputs.exists == 'false'
+      - name: Create GitHub Release with draft notes
+        if: steps.check-tag.outputs.exists == 'false' && steps.get-draft.outputs.has_draft == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.package-version.outputs.version }}
+          body: ${{ steps.get-draft.outputs.draft_body }}
+          draft: false
+          prerelease: false
+
+      - name: Create GitHub Release with generated notes
+        if: steps.check-tag.outputs.exists == 'false' && steps.get-draft.outputs.has_draft == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.package-version.outputs.version }}
           generate_release_notes: true
-          draft: true
+          draft: false
           prerelease: false
 
       - name: Publish to npm
