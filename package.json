@@ -33,7 +33,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "commander": "^13.1.0",
+    "commander": "^14.0.2",
     "drizzle-orm": "^0.44.2"
   },
   "devDependencies": {

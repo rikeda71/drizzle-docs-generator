@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       commander:
-        specifier: ^13.1.0
-        version: 13.1.0
+        specifier: ^14.0.2
+        version: 14.0.2
       drizzle-orm:
         specifier: ^0.44.2
         version: 0.44.7
@@ -603,9 +603,9 @@ packages:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
 
-  commander@13.1.0:
-    resolution: {integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==}
-    engines: {node: '>=18'}
+  commander@14.0.2:
+    resolution: {integrity: sha512-TywoWNNRbhoD0BXs1P3ZEScW8W5iKrnbithIl0YH+uCmBd0QpPOA8yc82DS3BIE5Ma6FnBVUsJ7wVUDz4dvOWQ==}
+    engines: {node: '>=20'}
 
   compare-versions@6.1.1:
     resolution: {integrity: sha512-4hm4VPpIecmlg59CHXnRDnqGplJFrbLG4aFEl5vl6cK1u76ws3LLvX7ikFnTDl5vo39sjWD6AaDPYodJp/NNHg==}
@@ -1529,7 +1529,7 @@ snapshots:
 
   chai@6.2.2: {}
 
-  commander@13.1.0: {}
+  commander@14.0.2: {}
 
   compare-versions@6.1.1: {}
 
