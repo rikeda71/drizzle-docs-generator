@@ -4,10 +4,9 @@
  * Provides functions to generate DBML from Drizzle ORM schema definitions.
  * Supports PostgreSQL, MySQL, and SQLite dialects.
  *
- * TODO: コメント対応は構文木（TypeScript Compiler API）を使ったアプローチで実装予定
- * - parseSchemaWithComments() 関数でソースファイルからJSDocコメントを抽出
- * - コメント情報をDBML出力時にNote句として追加
- * - テーブルコメントとカラムコメントの両方に対応
+ * JSDoc comments can be extracted from source files and included as DBML Note clauses.
+ * Use the `sourceFile` option to specify the schema source file, or pass pre-extracted
+ * comments via the `comments` option.
  */
 
 export { pgGenerate, PgGenerator } from "./pg.js";

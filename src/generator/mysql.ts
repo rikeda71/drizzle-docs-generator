@@ -5,9 +5,8 @@ import type { GenerateOptions } from "../types.js";
 /**
  * MySQL-specific DBML generator
  *
- * TODO: コメント対応は構文木（TypeScript Compiler API）を使ったアプローチで実装予定
- * - JSDocコメントからテーブル/カラムのNoteを抽出
- * - ソースファイルのASTを解析してコメントをDBMLに反映
+ * Supports JSDoc comment extraction via `sourceFile` or `comments` options.
+ * Comments are included as DBML Note clauses for tables and columns.
  */
 export class MySqlGenerator<
   TSchema extends Record<string, unknown> = Record<string, unknown>,
@@ -39,9 +38,10 @@ export class MySqlGenerator<
  * console.log(dbml);
  * ```
  *
- * TODO: コメント対応は構文木（TypeScript Compiler API）を使ったアプローチで実装予定
- * - parseSchemaWithComments() 関数でソースファイルからコメントを抽出
- * - コメント情報をDBML出力時にNote句として追加
+ * To include JSDoc comments as DBML Note clauses, use the `sourceFile` option:
+ * ```typescript
+ * const dbml = mysqlGenerate({ schema: { users }, sourceFile: "./schema.ts" });
+ * ```
  */
 export function mysqlGenerate<TSchema extends Record<string, unknown>>(
   options: GenerateOptions<TSchema>,
