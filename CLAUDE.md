@@ -92,3 +92,5 @@ Table users {
 - The project uses ISC license
 - Drizzle natively supports `drizzle-kit push` with `--dbml` flag, but it doesn't include comments
 - This tool extends that functionality by parsing comments from source code
+- use `gh` for view PR, create Issue, etc...
+  - :warning: use `gh` with `--repo rikeda71/drizzle-docs-generator` option
