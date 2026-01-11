@@ -70,10 +70,6 @@ This ensures CI will pass.
    - Handle file input/output
    - Provide error messages and usage help
 
-4. **Type Mappings** (`src/mappings/`)
-   - Map Drizzle column types to DBML types
-   - Handle database-specific types (PostgreSQL, MySQL, SQLite)
-
 ### Key Dependencies (Planned)
 
 - TypeScript Compiler API (`typescript`) for AST parsing

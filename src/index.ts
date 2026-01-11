@@ -8,7 +8,7 @@
  */
 
 // Comment extraction from source files
-export { extractComments, parseSchema } from "./parser/index.js";
+export { extractComments } from "./parser/index.js";
 export type { SchemaComments, TableComment, ColumnComment } from "./parser/index.js";
 
 // DBML generators
@@ -19,21 +19,10 @@ export {
   MySqlGenerator,
   sqliteGenerate,
   SqliteGenerator,
-  generateDbml,
   BaseGenerator,
   DbmlBuilder,
   writeDbmlFile,
 } from "./generator/index.js";
 
 // Types
-export type {
-  GenerateOptions,
-  GeneratedRef,
-  ColumnAttributes,
-  RelationType,
-  // Legacy types
-  ParsedSchema,
-  ParsedTable,
-  Column,
-  Relation,
-} from "./types.js";
+export type { GenerateOptions, GeneratedRef, ColumnAttributes, RelationType } from "./types.js";
