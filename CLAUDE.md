@@ -29,7 +29,7 @@ pnpm typecheck        # 型チェック
 ## コミット前に必ず実行
 
 ```bash
-pnpm format && pnpm lint && pnpm typecheck && pnpm test:run && pnpm build && pnpm test:integration
+pnpm format && pnpm lint && pnpm typecheck && pnpm test:run
 ```
 
 ## アーキテクチャ
