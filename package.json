@@ -1,7 +1,7 @@
 {
   "name": "drizzle-docs-generator",
-  "version": "0.0.1",
-  "description": "A CLI tool that generates DBML files from Drizzle ORM schema definitions",
+  "version": "0.1.0",
+  "description": "A CLI tool that generates DBML files from Drizzle ORM schema definitions.",
   "keywords": [
     "cli",
     "database",
@@ -9,15 +9,26 @@
     "documentation",
     "drizzle",
     "drizzle-orm",
-    "schema"
+    "schema",
+    "typescript"
   ],
+  "homepage": "https://github.com/rikeda71/drizzle-docs-generator#readme",
+  "bugs": {
+    "url": "https://github.com/rikeda71/drizzle-docs-generator/issues"
+  },
   "license": "ISC",
-  "author": "",
+  "author": "rikeda71",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rikeda71/drizzle-docs-generator.git"
+  },
   "bin": {
     "drizzle-docs": "dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "type": "module",
   "main": "dist/index.js",
@@ -44,6 +55,9 @@
     "vite": "^7.3.1",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.0.16"
+  },
+  "peerDependencies": {
+    "drizzle-orm": ">=0.44.0 || >=1.0.0-beta.0"
   },
   "engines": {
     "node": ">=24"
