@@ -11,6 +11,10 @@ import { existsSync, lstatSync, readdirSync, readFileSync, watch } from "node:fs
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { pgGenerate, mysqlGenerate, sqliteGenerate } from "../generator/index";
+import { register } from "tsx/esm/api";
+
+// Register tsx loader to support TypeScript and extensionless imports
+const unregister = register();
 
 const program = new Command();
 
@@ -149,10 +153,10 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
       } catch (error) {
         if (error instanceof Error) {
           console.error(`Error importing ${schemaPath}: ${error.message}`);
-          console.error("\nTip: If you're using relative imports in your schema files,");
-          console.error(
-            "make sure they include file extensions (e.g., './stores.js' instead of './stores')",
-          );
+          console.error("\nPossible causes:");
+          console.error("- Syntax error in the schema file");
+          console.error("- Missing dependencies (make sure drizzle-orm is installed)");
+          console.error("- Circular dependencies between schema files");
         }
         throw error;
       }
@@ -248,3 +252,8 @@ program
   });
 
 program.parse();
+
+// Cleanup: Unregister tsx loader when process exits
+process.on("exit", () => {
+  unregister();
+});

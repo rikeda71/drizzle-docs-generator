@@ -5,6 +5,14 @@
 
 CLI tool to generate DBML from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
 
+**✨ Features:**
+
+- 📁 **Directory Import Support**: Import all schema files from a directory
+- 🔄 **No File Extension Required**: Works with extensionless imports (e.g., `import { users } from './users'`)
+- 📝 **JSDoc Comments**: Automatically extracts and converts to DBML Notes
+- 🔗 **Relations Support**: Generate refs from `relations()` or `defineRelations()`
+- 👀 **Watch Mode**: Auto-regenerate on file changes
+
 [日本語版READMEはこちら](./README.ja.md)
 
 ## Install
@@ -86,6 +94,17 @@ const dbml = pgGenerate({
 
 - Node.js >= 24
 - Drizzle ORM v1 beta (1.0.0-beta.10+)
+- ES Modules (ESM): Your project must use ESM (`"type": "module"` in package.json)
+
+## How It Works
+
+This tool uses [tsx](https://github.com/privatenumber/tsx) to load your schema files, which means:
+
+✅ **Extensionless imports work**: `import { users } from './users'`
+✅ **TypeScript files are loaded directly**: No need to compile first
+✅ **Directory imports**: Load all schema files from a directory automatically
+
+Your schema files can use standard TypeScript module resolution without worrying about file extensions.
 
 ## License
 

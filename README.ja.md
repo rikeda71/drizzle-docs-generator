@@ -5,6 +5,14 @@
 
 Drizzle ORM スキーマから DBML を生成する CLI。JSDoc コメントを Note 句として出力できる。
 
+**✨ 機能:**
+
+- 📁 **ディレクトリインポート対応**: ディレクトリ内のすべてのスキーマファイルを自動インポート
+- 🔄 **拡張子不要**: 拡張子なしのインポートに対応 (例: `import { users } from './users'`)
+- 📝 **JSDoc コメント**: 自動的に DBML の Note 句に変換
+- 🔗 **リレーション対応**: `relations()` または `defineRelations()` から参照を生成
+- 👀 **Watch モード**: ファイル変更時に自動再生成
+
 [English README](./README.md)
 
 ## インストール
@@ -86,6 +94,17 @@ const dbml = pgGenerate({
 
 - Node.js >= 24
 - Drizzle ORM v1 beta (1.0.0-beta.10+)
+- ES Modules (ESM): プロジェクトで ESM を使用していること (`package.json` に `"type": "module"`)
+
+## 仕組み
+
+このツールは [tsx](https://github.com/privatenumber/tsx) を使用してスキーマファイルを読み込むため:
+
+✅ **拡張子なしのインポートが動作**: `import { users } from './users'`
+✅ **TypeScript ファイルを直接読み込み**: コンパイル不要
+✅ **ディレクトリインポート**: ディレクトリ内のすべてのスキーマファイルを自動読み込み
+
+スキーマファイルでは、ファイル拡張子を気にせず標準的な TypeScript のモジュール解決を使用できます。
 
 ## License
 
