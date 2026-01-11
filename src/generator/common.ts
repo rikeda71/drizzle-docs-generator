@@ -115,8 +115,8 @@ export abstract class BaseGenerator<
   generate(): string {
     const dbml = new DbmlBuilder();
     const tables = this.getTables();
-    const v0Relations = this.getRelations();
-    const v1Entries = this.getRelationEntries();
+    const v0Relations = this.getV0Relations();
+    const v1Entries = this.getV1RelationEntries();
 
     // Generate tables
     for (const table of tables) {
@@ -132,7 +132,7 @@ export abstract class BaseGenerator<
       }
       // Fall back to v0 relations() with AST parsing
       else if (v0Relations.length > 0 || this.parsedRelations) {
-        this.generateRelationalRefs(dbml, v0Relations);
+        this.generateRelationalRefsFromV0(dbml, v0Relations);
       }
     }
 
@@ -165,12 +165,12 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Get all relations from schema
+   * Get all v0 relations from schema (legacy relations() API)
    */
-  protected getRelations(): LegacyRelations[] {
+  protected getV0Relations(): LegacyRelations[] {
     const relations: LegacyRelations[] = [];
     for (const value of Object.values(this.schema)) {
-      if (this.isRelations(value)) {
+      if (this.isV0Relations(value)) {
         relations.push(value as LegacyRelations);
       }
     }
@@ -180,7 +180,7 @@ export abstract class BaseGenerator<
   /**
    * Check if a value is a Drizzle v0 relations object (from relations())
    */
-  protected isRelations(value: unknown): boolean {
+  protected isV0Relations(value: unknown): boolean {
     if (typeof value !== "object" || value === null) {
       return false;
     }
@@ -196,7 +196,7 @@ export abstract class BaseGenerator<
    * Check if a value is a v1 relation entry (from defineRelations())
    * Uses official Drizzle v1 types: TableRelationalConfig with Relation instances
    */
-  protected isRelationEntry(value: unknown): value is TableRelationalConfig {
+  protected isV1RelationEntry(value: unknown): value is TableRelationalConfig {
     if (typeof value !== "object" || value === null) {
       return false;
     }
@@ -223,21 +223,21 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Get all v1 relation entries from schema
+   * Get all v1 relation entries from schema (defineRelations() API)
    * Handles both individual entries and the full defineRelations() result object
    */
-  protected getRelationEntries(): TableRelationalConfig[] {
+  protected getV1RelationEntries(): TableRelationalConfig[] {
     const entries: TableRelationalConfig[] = [];
     for (const value of Object.values(this.schema)) {
       // Check if it's an individual relation entry
-      if (this.isRelationEntry(value)) {
+      if (this.isV1RelationEntry(value)) {
         entries.push(value);
       }
       // Check if it's the full defineRelations() result object
       // (an object where each value is a relation entry)
-      else if (this.isDefineRelationsResult(value)) {
+      else if (this.isV1DefineRelationsResult(value)) {
         for (const entry of Object.values(value as Record<string, unknown>)) {
-          if (this.isRelationEntry(entry)) {
+          if (this.isV1RelationEntry(entry)) {
             entries.push(entry);
           }
         }
@@ -247,17 +247,17 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Check if a value is a full defineRelations() result object
+   * Check if a value is a full v1 defineRelations() result object
    * This is an object where all values are TableRelationalConfig objects
    */
-  protected isDefineRelationsResult(value: unknown): boolean {
+  protected isV1DefineRelationsResult(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
       return false;
     }
     const obj = value as Record<string, unknown>;
     const values = Object.values(obj);
     // Must have at least one entry and all must be relation entries
-    return values.length > 0 && values.every((v) => this.isRelationEntry(v));
+    return values.length > 0 && values.every((v) => this.isV1RelationEntry(v));
   }
 
   /**
@@ -625,14 +625,14 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Generate references from relations
+   * Generate references from v0 relations() API
    *
    * Uses TypeScript Compiler API to parse relations() definitions from source file
    * and extract fields/references to generate DBML Ref lines.
    *
    * Detects one-to-one relationships when bidirectional one() relations exist.
    */
-  protected generateRelationalRefs(_dbml: DbmlBuilder, _relations: LegacyRelations[]): void {
+  protected generateRelationalRefsFromV0(_dbml: DbmlBuilder, _relations: LegacyRelations[]): void {
     if (!this.parsedRelations || this.parsedRelations.relations.length === 0) {
       return;
     }
