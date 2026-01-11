@@ -5,7 +5,7 @@
  * Supports PostgreSQL, MySQL, and SQLite dialects.
  *
  * JSDoc comments can be extracted from source files and included as DBML Note clauses.
- * Use the `sourceFile` option to specify the schema source file, or pass pre-extracted
+ * Use the `source` option to specify the schema source file or directory, or pass pre-extracted
  * comments via the `comments` option.
  */
 

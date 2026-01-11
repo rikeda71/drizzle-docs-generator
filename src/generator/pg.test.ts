@@ -154,6 +154,16 @@ describe("pgGenerate", () => {
 });
 
 describe("pgGenerate with relations", () => {
+  const RELATIONS_TEST_DIR = join(import.meta.dirname, "__test_fixtures_relations__");
+
+  beforeAll(() => {
+    mkdirSync(RELATIONS_TEST_DIR, { recursive: true });
+  });
+
+  afterAll(() => {
+    rmSync(RELATIONS_TEST_DIR, { recursive: true, force: true });
+  });
+
   it("should generate references from relations when relational option is true", () => {
     const users = pgTable("users", {
       id: serial("id").primaryKey(),
@@ -184,6 +194,317 @@ describe("pgGenerate with relations", () => {
 
     expect(dbml).toContain('Table "users" {');
     expect(dbml).toContain('Table "posts" {');
+  });
+
+  it("should generate Ref from relations() when sourceFile is provided", () => {
+    const schemaCode = `
+import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: text("name"),
+});
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  title: text("title"),
+  authorId: integer("author_id").notNull(),
+});
+
+export const usersRelations = relations(users, ({ many }) => ({
+  posts: many(posts),
+}));
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+}));
+`;
+    const filePath = join(RELATIONS_TEST_DIR, "schema-with-relations.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const posts = pgTable("posts", {
+      id: serial("id").primaryKey(),
+      title: text("title"),
+      authorId: integer("author_id").notNull(),
+    });
+
+    const usersRelations = relations(users, ({ many }) => ({
+      posts: many(posts),
+    }));
+
+    const postsRelations = relations(posts, ({ one }) => ({
+      author: one(users, {
+        fields: [posts.authorId],
+        references: [users.id],
+      }),
+    }));
+
+    const dbml = pgGenerate({
+      schema: { users, posts, usersRelations, postsRelations },
+      relational: true,
+      source: filePath,
+    });
+
+    expect(dbml).toContain('Table "users" {');
+    expect(dbml).toContain('Table "posts" {');
+    expect(dbml).toContain("Ref:");
+    expect(dbml).toContain('"posts"."author_id"');
+    expect(dbml).toContain('"users"."id"');
+  });
+
+  it("should generate multiple Refs for multiple one() relations", () => {
+    const schemaCode = `
+import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+});
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+});
+
+export const comments = pgTable("comments", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id"),
+  authorId: integer("author_id"),
+});
+
+export const commentsRelations = relations(comments, ({ one }) => ({
+  post: one(posts, {
+    fields: [comments.postId],
+    references: [posts.id],
+  }),
+  author: one(users, {
+    fields: [comments.authorId],
+    references: [users.id],
+  }),
+}));
+`;
+    const filePath = join(RELATIONS_TEST_DIR, "schema-multiple-relations.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+    });
+
+    const posts = pgTable("posts", {
+      id: serial("id").primaryKey(),
+    });
+
+    const comments = pgTable("comments", {
+      id: serial("id").primaryKey(),
+      postId: integer("post_id"),
+      authorId: integer("author_id"),
+    });
+
+    const commentsRelations = relations(comments, ({ one }) => ({
+      post: one(posts, {
+        fields: [comments.postId],
+        references: [posts.id],
+      }),
+      author: one(users, {
+        fields: [comments.authorId],
+        references: [users.id],
+      }),
+    }));
+
+    const dbml = pgGenerate({
+      schema: { users, posts, comments, commentsRelations },
+      relational: true,
+      source: filePath,
+    });
+
+    expect(dbml).toContain('Ref: "comments"."post_id" > "posts"."id"');
+    expect(dbml).toContain('Ref: "comments"."author_id" > "users"."id"');
+  });
+
+  it("should not generate Ref for many() without corresponding one()", () => {
+    const schemaCode = `
+import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+});
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  authorId: integer("author_id"),
+});
+
+export const usersRelations = relations(users, ({ many }) => ({
+  posts: many(posts),
+}));
+`;
+    const filePath = join(RELATIONS_TEST_DIR, "schema-many-only.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+    });
+
+    const posts = pgTable("posts", {
+      id: serial("id").primaryKey(),
+      authorId: integer("author_id"),
+    });
+
+    const usersRelations = relations(users, ({ many }) => ({
+      posts: many(posts),
+    }));
+
+    const dbml = pgGenerate({
+      schema: { users, posts, usersRelations },
+      relational: true,
+      source: filePath,
+    });
+
+    // Should not contain Ref since many() doesn't have fields/references
+    expect(dbml).not.toContain("Ref:");
+  });
+
+  it("should generate one-to-one Ref (-) when bidirectional one() relations exist", () => {
+    const schemaCode = `
+import { pgTable, serial, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id"),
+});
+
+export const profiles = pgTable("profiles", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"),
+});
+
+export const usersRelations = relations(users, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [users.profileId],
+    references: [profiles.id],
+  }),
+}));
+
+export const profilesRelations = relations(profiles, ({ one }) => ({
+  user: one(users, {
+    fields: [profiles.id],
+    references: [users.profileId],
+  }),
+}));
+`;
+    const filePath = join(RELATIONS_TEST_DIR, "schema-one-to-one.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      profileId: integer("profile_id"),
+    });
+
+    const profiles = pgTable("profiles", {
+      id: serial("id").primaryKey(),
+      userId: integer("user_id"),
+    });
+
+    const usersRelations = relations(users, ({ one }) => ({
+      profile: one(profiles, {
+        fields: [users.profileId],
+        references: [profiles.id],
+      }),
+    }));
+
+    const profilesRelations = relations(profiles, ({ one }) => ({
+      user: one(users, {
+        fields: [profiles.id],
+        references: [users.profileId],
+      }),
+    }));
+
+    const dbml = pgGenerate({
+      schema: { users, profiles, usersRelations, profilesRelations },
+      relational: true,
+      source: filePath,
+    });
+
+    // Should use "-" for one-to-one relationship
+    expect(dbml).toContain('Ref: "users"."profile_id" - "profiles"."id"');
+    // Should NOT have duplicate ref
+    expect(dbml).not.toContain('Ref: "profiles"."id" - "users"."profile_id"');
+  });
+
+  it("should support source option with directory", () => {
+    const schemaDir = join(RELATIONS_TEST_DIR, "schema_dir");
+    mkdirSync(schemaDir, { recursive: true });
+
+    // Create multiple schema files in directory
+    writeFileSync(
+      join(schemaDir, "users.ts"),
+      `
+import { pgTable, serial, text } from "drizzle-orm/pg-core";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: text("name"),
+});
+`,
+    );
+
+    writeFileSync(
+      join(schemaDir, "posts.ts"),
+      `
+import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import { users } from "./users.js";
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  authorId: integer("author_id"),
+});
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+}));
+`,
+    );
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const posts = pgTable("posts", {
+      id: serial("id").primaryKey(),
+      authorId: integer("author_id"),
+    });
+
+    const postsRelations = relations(posts, ({ one }) => ({
+      author: one(users, {
+        fields: [posts.authorId],
+        references: [users.id],
+      }),
+    }));
+
+    const dbml = pgGenerate({
+      schema: { users, posts, postsRelations },
+      relational: true,
+      source: schemaDir, // Use directory instead of file
+    });
+
+    expect(dbml).toContain('Table "users" {');
+    expect(dbml).toContain('Table "posts" {');
+    expect(dbml).toContain('Ref: "posts"."author_id" > "users"."id"');
   });
 });
 
@@ -264,7 +585,7 @@ describe("pgGenerate with comments", () => {
     expect(dbml).toContain("note: 'Unique ID'");
   });
 
-  it("should extract comments from sourceFile option", () => {
+  it("should extract comments from source option", () => {
     const schemaCode = `
 import { pgTable, serial, text } from "drizzle-orm/pg-core";
 
@@ -284,7 +605,7 @@ export const users = pgTable("users", {
       name: text("name"),
     });
 
-    const dbml = pgGenerate({ schema: { users }, sourceFile: filePath });
+    const dbml = pgGenerate({ schema: { users }, source: filePath });
 
     expect(dbml).toContain("Note: 'Users table with account info'");
     expect(dbml).toContain("note: 'Auto-generated ID'");

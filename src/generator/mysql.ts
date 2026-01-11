@@ -38,9 +38,9 @@ export class MySqlGenerator<
  * console.log(dbml);
  * ```
  *
- * To include JSDoc comments as DBML Note clauses, use the `sourceFile` option:
+ * To include JSDoc comments as DBML Note clauses, use the `source` option:
  * ```typescript
- * const dbml = mysqlGenerate({ schema: { users }, sourceFile: "./schema.ts" });
+ * const dbml = mysqlGenerate({ schema: { users }, source: "./schema.ts" });
  * ```
  */
 export function mysqlGenerate<TSchema extends Record<string, unknown>>(
