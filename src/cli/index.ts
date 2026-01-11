@@ -64,7 +64,7 @@ async function generateDbml(
     schema: schemaModule,
     out: options.output,
     relational: options.relational,
-    sourceFile: schemaPath,
+    source: schemaPath,
   });
 
   return dbml;
