@@ -20,7 +20,15 @@ export default defineConfig({
     target: "node18",
     sourcemap: true,
     rollupOptions: {
-      external: ["typescript", "commander", "drizzle-orm", "tsx", /^node:/, /^drizzle-orm\//, /^tsx\//],
+      external: [
+        "typescript",
+        "commander",
+        "drizzle-orm",
+        "tsx",
+        /^node:/,
+        /^drizzle-orm\//,
+        /^tsx\//,
+      ],
       output: {
         preserveModules: true,
         preserveModulesRoot: "src",

@@ -6,6 +6,7 @@
 CLI tool to generate DBML from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
 
 **✨ Features:**
+
 - 📁 **Directory Import Support**: Import all schema files from a directory
 - 🔄 **No File Extension Required**: Works with extensionless imports (e.g., `import { users } from './users'`)
 - 📝 **JSDoc Comments**: Automatically extracts and converts to DBML Notes
