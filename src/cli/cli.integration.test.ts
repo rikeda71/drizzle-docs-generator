@@ -354,7 +354,7 @@ describe("CLI Integration Tests", () => {
       const result = await runGenerate("./non-existent-schema.ts", "postgresql");
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("Schema file not found");
+      expect(result.stderr).toContain("Schema path not found");
     });
 
     it("should error for invalid dialect", async () => {
@@ -362,6 +362,30 @@ describe("CLI Integration Tests", () => {
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("Invalid dialect");
+    });
+  });
+
+  // ============================================
+  // Directory Import Tests
+  // ============================================
+  describe("Directory Import", () => {
+    it("should generate DBML from directory containing schema files", async () => {
+      const schemaDir = join(EXAMPLES_DIR, "pg");
+      const result = await runCli(["generate", schemaDir, "-d", "postgresql"]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Table "users"');
+      expect(result.stdout).toContain('Table "posts"');
+      // Should include schemas from multiple files in the directory
+      expect(countTables(result.stdout)).toBeGreaterThanOrEqual(5);
+    });
+
+    it("should error for empty directory", async () => {
+      const emptyDir = join(import.meta.dirname, "../../tests/fixtures/empty");
+      const result = await runCli(["generate", emptyDir, "-d", "postgresql"]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("No schema files found in directory");
     });
   });
 

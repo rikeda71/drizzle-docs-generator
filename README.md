@@ -18,8 +18,11 @@ pnpm add -g drizzle-docs-generator
 ## Usage
 
 ```bash
-# Basic
+# Basic - single file
 drizzle-docs generate ./src/db/schema.ts -d postgresql
+
+# Directory - import all schema files from directory
+drizzle-docs generate ./src/db/schema/ -d postgresql
 
 # Output to file
 drizzle-docs generate ./src/db/schema.ts -d postgresql -o schema.dbml

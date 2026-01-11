@@ -7,7 +7,7 @@
  */
 
 import { Command } from "commander";
-import { existsSync, readFileSync, watch } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, watch } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { pgGenerate, mysqlGenerate, sqliteGenerate } from "../generator/index";
@@ -75,19 +75,96 @@ async function generateDbml(
 }
 
 /**
- * Run the generate command
+ * Find all TypeScript schema files in a directory
  */
-async function runGenerate(schema: string, options: GenerateCommandOptions): Promise<void> {
+function findSchemaFiles(dirPath: string): string[] {
+  const files: string[] = [];
+
+  try {
+    const entries = readdirSync(dirPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = join(dirPath, entry.name);
+
+      if (entry.isDirectory()) {
+        // Recursively search subdirectories
+        files.push(...findSchemaFiles(fullPath));
+      } else if (entry.isFile() && /\.(ts|js|mts|mjs|cts|cjs)$/.test(entry.name)) {
+        files.push(fullPath);
+      }
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error(`Error reading directory ${dirPath}: ${error.message}`);
+    }
+  }
+
+  return files;
+}
+
+/**
+ * Resolve schema path (file or directory)
+ */
+function resolveSchemaPath(schema: string): string[] {
   const schemaPath = resolve(process.cwd(), schema);
 
-  // Check if file exists
+  // Check if path exists
   if (!existsSync(schemaPath)) {
-    console.error(`Error: Schema file not found: ${schemaPath}`);
+    console.error(`Error: Schema path not found: ${schemaPath}`);
     process.exit(1);
   }
 
+  // Check if it's a directory
+  const stats = lstatSync(schemaPath);
+  if (stats.isDirectory()) {
+    const schemaFiles = findSchemaFiles(schemaPath);
+    if (schemaFiles.length === 0) {
+      console.error(`Error: No schema files found in directory: ${schemaPath}`);
+      process.exit(1);
+    }
+    return schemaFiles;
+  }
+
+  // Single file
+  return [schemaPath];
+}
+
+/**
+ * Run the generate command
+ */
+async function runGenerate(schema: string, options: GenerateCommandOptions): Promise<void> {
+  const schemaPaths = resolveSchemaPath(schema);
+
   try {
-    const dbml = await generateDbml(schemaPath, options);
+    // Merge all schema modules
+    const mergedSchema: Record<string, unknown> = {};
+
+    for (const schemaPath of schemaPaths) {
+      const schemaUrl = pathToFileURL(schemaPath).href;
+      const cacheBuster = options.watch ? `?t=${Date.now()}` : "";
+
+      try {
+        const schemaModule = (await import(schemaUrl + cacheBuster)) as Record<string, unknown>;
+        Object.assign(mergedSchema, schemaModule);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(`Error importing ${schemaPath}: ${error.message}`);
+          console.error("\nTip: If you're using relative imports in your schema files,");
+          console.error(
+            "make sure they include file extensions (e.g., './stores.js' instead of './stores')",
+          );
+        }
+        throw error;
+      }
+    }
+
+    const generate = getGenerator(options.dialect);
+    const dbml = generate({
+      schema: mergedSchema,
+      out: options.output,
+      relational: options.relational,
+      source: schemaPaths[0], // Use first file for source path
+    });
 
     if (!options.output && dbml) {
       console.log(dbml);
@@ -146,7 +223,7 @@ function watchSchema(schema: string, options: GenerateCommandOptions): void {
 program
   .command("generate")
   .description("Generate DBML from Drizzle schema files")
-  .argument("<schema>", "Path to Drizzle schema file")
+  .argument("<schema>", "Path to Drizzle schema file or directory")
   .option("-o, --output <file>", "Output file path")
   .option("-d, --dialect <dialect>", "Database dialect (postgresql, mysql, sqlite)", "postgresql")
   .option("-r, --relational", "Use relations() definitions instead of foreign keys")
