@@ -33,20 +33,20 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "commander": "^13.1.0",
+    "commander": "^14.0.2",
     "drizzle-orm": "^0.44.2"
   },
   "devDependencies": {
-    "@types/node": "^22.15.21",
+    "@types/node": "^24.10.7",
     "oxfmt": "^0.23.0",
-    "oxlint": "^0.16.10",
-    "typescript": "^5.8.3",
+    "oxlint": "^1.38.0",
+    "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.0.16"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "packageManager": "pnpm@10.24.0"
 }
