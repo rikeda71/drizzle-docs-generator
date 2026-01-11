@@ -1,6 +1,6 @@
 import type { AnyColumn } from "drizzle-orm";
-import { BaseGenerator, writeDbmlFile, type DialectConfig } from "./common.js";
-import type { GenerateOptions } from "../types.js";
+import { BaseGenerator, writeDbmlFile, type DialectConfig } from "./common";
+import type { GenerateOptions } from "../types";
 
 /**
  * MySQL-specific DBML generator

@@ -10,7 +10,7 @@ import { Command } from "commander";
 import { existsSync, readFileSync, watch } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { pgGenerate, mysqlGenerate, sqliteGenerate } from "../generator/index.js";
+import { pgGenerate, mysqlGenerate, sqliteGenerate } from "../generator/index";
 
 const program = new Command();
 
