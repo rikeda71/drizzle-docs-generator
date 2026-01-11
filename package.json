@@ -9,15 +9,26 @@
     "documentation",
     "drizzle",
     "drizzle-orm",
-    "schema"
+    "schema",
+    "typescript"
   ],
+  "homepage": "https://github.com/rikeda71/drizzle-docs-generator#readme",
+  "bugs": {
+    "url": "https://github.com/rikeda71/drizzle-docs-generator/issues"
+  },
   "license": "ISC",
-  "author": "",
+  "author": "rikeda71",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rikeda71/drizzle-docs-generator.git"
+  },
   "bin": {
     "drizzle-docs": "dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "type": "module",
   "main": "dist/index.js",
