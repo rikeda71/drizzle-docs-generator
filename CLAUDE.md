@@ -57,7 +57,7 @@ pnpm format && pnpm lint && pnpm typecheck && pnpm test:run
 
 ## メモ
 
-- ライセンス: ISC
+- ライセンス: MIT
 - Node.js >= 24
 - Drizzle ORM v1 beta (1.0.0-beta.10+)
 - `gh` コマンド使用時は `--repo rikeda71/drizzle-docs-generator` オプションを付けること

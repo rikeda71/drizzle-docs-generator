@@ -1,7 +1,7 @@
 # drizzle-docs-generator
 
 [![npm version](https://badge.fury.io/js/drizzle-docs-generator.svg)](https://www.npmjs.com/package/drizzle-docs-generator)
-[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 CLI tool to generate DBML from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
 
@@ -86,4 +86,4 @@ const dbml = pgGenerate({
 
 ## License
 
-ISC
+MIT
