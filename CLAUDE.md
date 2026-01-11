@@ -15,14 +15,15 @@ Claude Code 向けの開発ガイド。
 ## コマンド
 
 ```bash
-pnpm install     # 依存関係インストール
-pnpm build       # ビルド
-pnpm test        # テスト (watch mode)
-pnpm test:run    # テスト (1回)
-pnpm dev         # ビルド (watch mode)
-pnpm format      # フォーマット (oxfmt)
-pnpm lint        # リント (oxlint)
-pnpm typecheck   # 型チェック
+pnpm install          # 依存関係インストール
+pnpm build            # ビルド
+pnpm test             # ユニットテスト (watch mode)
+pnpm test:run         # ユニットテスト (1回)
+pnpm test:integration # 統合テスト (要ビルド)
+pnpm dev              # ビルド (watch mode)
+pnpm format           # フォーマット (oxfmt)
+pnpm lint             # リント (oxlint)
+pnpm typecheck        # 型チェック
 ```
 
 ## コミット前に必ず実行

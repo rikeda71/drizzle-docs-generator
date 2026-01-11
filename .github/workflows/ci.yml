@@ -34,8 +34,11 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
+      - name: Unit Test
+        run: pnpm test:run
+
       - name: Build
         run: pnpm build
 
-      - name: Test
-        run: pnpm test:run
+      - name: Integration Test
+        run: pnpm test:integration
