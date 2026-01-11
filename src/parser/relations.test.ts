@@ -245,4 +245,143 @@ export const users = pgTable("users", {
 
     expect(result.relations).toHaveLength(0);
   });
+
+  describe("v0 backward compatibility", () => {
+    it("should extract relations from v0-style drizzle-orm/_relations import", () => {
+      const schemaCode = `
+import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm/_relations";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: text("name"),
+});
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  title: text("title"),
+  authorId: integer("author_id").notNull(),
+});
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+}));
+`;
+      const filePath = join(TEST_DIR, "v0-relations-import.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const result = extractRelations(filePath);
+
+      expect(result.relations).toHaveLength(1);
+      expect(result.relations[0]).toEqual({
+        sourceTable: "posts",
+        targetTable: "users",
+        type: "one",
+        fields: ["authorId"],
+        references: ["id"],
+      });
+    });
+
+    it("should extract v0-style relations with older column types", () => {
+      const schemaCode = `
+import { pgTable, serial, varchar, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }),
+});
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }),
+  content: varchar("content", { length: 1000 }),
+  authorId: integer("author_id").notNull(),
+});
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  posts: many(posts),
+}));
+`;
+      const filePath = join(TEST_DIR, "v0-column-types.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const result = extractRelations(filePath);
+
+      expect(result.relations).toHaveLength(2);
+      expect(result.relations).toContainEqual({
+        sourceTable: "posts",
+        targetTable: "users",
+        type: "one",
+        fields: ["authorId"],
+        references: ["id"],
+      });
+      expect(result.relations).toContainEqual({
+        sourceTable: "users",
+        targetTable: "posts",
+        type: "many",
+        fields: [],
+        references: [],
+      });
+    });
+
+    it("should handle v0-style mixed imports (relations from drizzle-orm)", () => {
+      const schemaCode = `
+import { mysqlTable, int, varchar } from "drizzle-orm/mysql-core";
+import { relations } from "drizzle-orm";
+
+export const categories = mysqlTable("categories", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 255 }).notNull(),
+});
+
+export const products = mysqlTable("products", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 255 }).notNull(),
+  categoryId: int("category_id").notNull(),
+});
+
+export const productsRelations = relations(products, ({ one }) => ({
+  category: one(categories, {
+    fields: [products.categoryId],
+    references: [categories.id],
+  }),
+}));
+
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  products: many(products),
+}));
+`;
+      const filePath = join(TEST_DIR, "v0-mysql-mixed.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const result = extractRelations(filePath);
+
+      expect(result.relations).toHaveLength(2);
+      expect(result.relations).toContainEqual({
+        sourceTable: "products",
+        targetTable: "categories",
+        type: "one",
+        fields: ["categoryId"],
+        references: ["id"],
+      });
+      expect(result.relations).toContainEqual({
+        sourceTable: "categories",
+        targetTable: "products",
+        type: "many",
+        fields: [],
+        references: [],
+      });
+    });
+  });
 });

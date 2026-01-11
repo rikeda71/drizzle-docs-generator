@@ -56,6 +56,9 @@
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.0.16"
   },
+  "peerDependencies": {
+    "drizzle-orm": ">=0.44.0 || >=1.0.0-beta.0"
+  },
   "engines": {
     "node": ">=24"
   },
