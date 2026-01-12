@@ -19,7 +19,7 @@ export { BaseGenerator, writeDbmlFile } from "./generator/common";
 export { DbmlBuilder } from "./formatter/dbml-builder";
 
 // Types
-export type { GenerateOptions, GeneratedRef, ColumnAttributes, RelationType } from "./types";
+export type { GenerateOptions, GeneratedRef } from "./types";
 
 // Intermediate Schema Types (for output formatters)
 export type {

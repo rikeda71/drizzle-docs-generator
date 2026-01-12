@@ -26,11 +26,6 @@ export interface GenerateOptions<TSchema extends Record<string, unknown>> {
 }
 
 /**
- * Supported relation types in DBML
- */
-export type RelationType = "one-to-one" | "one-to-many" | "many-to-one";
-
-/**
  * Internal representation of a reference/relationship
  */
 export interface GeneratedRef {
@@ -41,18 +36,6 @@ export interface GeneratedRef {
   type: "<" | ">" | "-";
   onDelete?: string;
   onUpdate?: string;
-}
-
-/**
- * Column constraint attributes for DBML output
- */
-export interface ColumnAttributes {
-  primaryKey?: boolean;
-  notNull?: boolean;
-  unique?: boolean;
-  increment?: boolean;
-  default?: string;
-  note?: string;
 }
 
 // =============================================================================
@@ -148,7 +131,6 @@ export interface TableDefinition {
 
 /**
  * Relation types for intermediate schema
- * Note: This is more detailed than RelationType used for DBML output
  */
 export type IntermediateRelationType =
   | "one-to-one"
