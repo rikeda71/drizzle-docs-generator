@@ -55,7 +55,7 @@ export interface IndexConfig {
   config: {
     columns: Array<{ name: string }>;
     name?: string;
-    unique?: boolean;
+    unique: boolean;
     using?: string;
   };
 }
@@ -312,43 +312,67 @@ export abstract class BaseGenerator<
    *
    * Extracts indexes, primary keys, unique constraints, and foreign keys
    * from the table using the appropriate dialect-specific config getter.
-   * Type casts are applied at this boundary to convert Drizzle's internal types
-   * to our typed interfaces.
    *
    * @param table - The Drizzle table to get configuration from
    * @returns Table configuration or undefined if dialect is not supported
    */
   protected getTableConfig(table: Table): TableConfig | undefined {
     // Detect dialect and use appropriate config getter
-    // Type casts at the boundary from Drizzle internal types to our interfaces
     if (is(table, PgTable)) {
       const config = getPgTableConfig(table);
-      return {
-        indexes: (config.indexes || []) as unknown as IndexConfig[],
-        primaryKeys: (config.primaryKeys || []) as unknown as PrimaryKeyConfig[],
-        uniqueConstraints: (config.uniqueConstraints || []) as unknown as UniqueConstraintConfig[],
-        foreignKeys: (config.foreignKeys || []) as unknown as ForeignKeyConfig[],
-      };
+      return this.mapTableConfig(config);
     }
     if (is(table, MySqlTable)) {
       const config = getMySqlTableConfig(table);
-      return {
-        indexes: (config.indexes || []) as unknown as IndexConfig[],
-        primaryKeys: (config.primaryKeys || []) as unknown as PrimaryKeyConfig[],
-        uniqueConstraints: (config.uniqueConstraints || []) as unknown as UniqueConstraintConfig[],
-        foreignKeys: (config.foreignKeys || []) as unknown as ForeignKeyConfig[],
-      };
+      return this.mapTableConfig(config);
     }
     if (is(table, SQLiteTable)) {
       const config = getSqliteTableConfig(table);
-      return {
-        indexes: (config.indexes || []) as unknown as IndexConfig[],
-        primaryKeys: (config.primaryKeys || []) as unknown as PrimaryKeyConfig[],
-        uniqueConstraints: (config.uniqueConstraints || []) as unknown as UniqueConstraintConfig[],
-        foreignKeys: (config.foreignKeys || []) as unknown as ForeignKeyConfig[],
-      };
+      return this.mapTableConfig(config);
     }
     return undefined;
+  }
+
+  /**
+   * Map Drizzle's internal table config to our typed TableConfig
+   */
+  private mapTableConfig(config: {
+    indexes: Array<{
+      config: { columns: unknown[]; name?: string; unique?: boolean; using?: string };
+    }>;
+    primaryKeys: Array<{ columns: unknown[]; name?: string }>;
+    uniqueConstraints: Array<{ columns: unknown[]; name?: string }>;
+    foreignKeys: Array<{
+      reference: () => { columns: unknown[]; foreignColumns: unknown[]; foreignTable: Table };
+      name?: string;
+      onDelete?: string;
+      onUpdate?: string;
+    }>;
+  }): TableConfig {
+    return {
+      indexes: (config.indexes || []).map((idx) => ({
+        config: {
+          columns: idx.config.columns.map((c) => ({ name: (c as { name: string }).name })),
+          name: idx.config.name,
+          unique: idx.config.unique ?? false,
+          using: idx.config.using,
+        },
+      })),
+      primaryKeys: (config.primaryKeys || []).map((pk) => ({
+        columns: pk.columns.map((c) => ({ name: (c as { name: string }).name })),
+        name: pk.name,
+      })),
+      uniqueConstraints: (config.uniqueConstraints || []).map((uc) => ({
+        columns: uc.columns.map((c) => ({ name: (c as { name: string }).name })),
+        name: uc.name,
+      })),
+      foreignKeys: (config.foreignKeys || []).map((fk) => ({
+        reference: fk.reference as ForeignKeyConfig["reference"],
+        name: fk.name,
+        onDelete: fk.onDelete,
+        onUpdate: fk.onUpdate,
+      })),
+    };
   }
 
   /**
@@ -549,7 +573,7 @@ export abstract class BaseGenerator<
    * @returns True if the index has the unique flag
    */
   protected isUniqueIndex(idx: IndexConfig): boolean {
-    return idx.config.unique === true;
+    return idx.config.unique;
   }
 
   /**
