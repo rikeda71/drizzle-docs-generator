@@ -14,15 +14,6 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DbmlFormatter } from "../formatter/dbml";
 
-/**
- * Legacy v0 Relations type (for backward compatibility with relations())
- * This is a simplified type - the actual structure is more complex
- */
-type LegacyRelations = {
-  table: Table;
-  config: Record<string, unknown>;
-};
-
 import type {
   GeneratedRef,
   GenerateOptions,
@@ -99,10 +90,6 @@ export interface TableConfig {
   uniqueConstraints: UniqueConstraintConfig[];
   foreignKeys: ForeignKeyConfig[];
 }
-
-// Use official v1 types from drizzle-orm/relations:
-// - TableRelationalConfig: { table, name, relations: Record<string, AnyRelation> }
-// - AnyRelation: Relation with sourceColumns, targetColumns, relationType, etc.
 
 /**
  * Base generator class for DBML generation
@@ -185,44 +172,6 @@ export abstract class BaseGenerator<
    */
   protected isTable(value: unknown): boolean {
     return is(value, PgTable) || is(value, MySqlTable) || is(value, SQLiteTable);
-  }
-
-  /**
-   * Get all v0 relations from schema (legacy relations() API)
-   *
-   * Extracts legacy relations defined using the old relations() API.
-   * These are identified by having 'table' and 'config' properties.
-   *
-   * @returns Array of legacy relation objects
-   */
-  protected getV0Relations(): LegacyRelations[] {
-    const relations: LegacyRelations[] = [];
-    for (const value of Object.values(this.schema)) {
-      if (this.isV0Relations(value)) {
-        relations.push(value as LegacyRelations);
-      }
-    }
-    return relations;
-  }
-
-  /**
-   * Check if a value is a Drizzle v0 relations object (from relations())
-   *
-   * Validates the legacy relations() format by checking for 'table' and 'config' properties.
-   *
-   * @param value - The value to check
-   * @returns True if value is a legacy relations object
-   */
-  protected isV0Relations(value: unknown): boolean {
-    if (typeof value !== "object" || value === null) {
-      return false;
-    }
-    // v0 Relations objects have 'table' and 'config' properties
-    return (
-      "table" in value &&
-      "config" in value &&
-      typeof (value as Record<string, unknown>).config === "object"
-    );
   }
 
   /**
@@ -498,46 +447,6 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Get a mapping from variable names to table names in the schema
-   *
-   * Creates a map from TypeScript variable names (e.g., "usersTable") to
-   * actual database table names (e.g., "users").
-   *
-   * @returns Map of variable names to table names
-   */
-  protected getTableNameMapping(): Map<string, string> {
-    const mapping = new Map<string, string>();
-    for (const [varName, value] of Object.entries(this.schema)) {
-      if (this.isTable(value)) {
-        const tableName = getTableName(value as Table);
-        mapping.set(varName, tableName);
-      }
-    }
-    return mapping;
-  }
-
-  /**
-   * Get a mapping from TypeScript property names to database column names for a table
-   *
-   * Creates a map from TypeScript property names (e.g., "authorId") to
-   * actual database column names (e.g., "author_id").
-   *
-   * @param tableVarName - The variable name of the table in the schema
-   * @returns Map of property names to column names
-   */
-  protected getColumnNameMapping(tableVarName: string): Map<string, string> {
-    const mapping = new Map<string, string>();
-    const table = this.schema[tableVarName];
-    if (table && this.isTable(table)) {
-      const columns = getTableColumns(table as Table);
-      for (const [propName, column] of Object.entries(columns)) {
-        mapping.set(propName, column.name);
-      }
-    }
-    return mapping;
-  }
-
-  /**
    * Create the appropriate relation adapter based on schema contents
    *
    * Detects whether v1 or v0 relations are present and returns the
@@ -573,52 +482,6 @@ export abstract class BaseGenerator<
       onUpdate: unified.onUpdate,
     };
   }
-
-  // Helper methods for extracting column information from constraints
-
-  /**
-   * Get column names from an index definition
-   *
-   * @param idx - The index definition to extract columns from
-   * @returns Array of column names in the index
-   */
-  protected getIndexColumns(idx: IndexConfig): string[] {
-    return idx.config.columns.map((c) => c.name);
-  }
-
-  /**
-   * Check if an index is unique
-   *
-   * @param idx - The index definition to check
-   * @returns True if the index has the unique flag
-   */
-  protected isUniqueIndex(idx: IndexConfig): boolean {
-    return idx.config.unique;
-  }
-
-  /**
-   * Get column names from a primary key constraint
-   *
-   * @param pk - The primary key definition to extract columns from
-   * @returns Array of column names in the primary key
-   */
-  protected getPrimaryKeyColumns(pk: PrimaryKeyConfig): string[] {
-    return pk.columns.map((c) => c.name);
-  }
-
-  /**
-   * Get column names from a unique constraint
-   *
-   * @param uc - The unique constraint definition to extract columns from
-   * @returns Array of column names in the unique constraint
-   */
-  protected getUniqueConstraintColumns(uc: UniqueConstraintConfig): string[] {
-    return uc.columns.map((c) => c.name);
-  }
-
-  // =============================================================================
-  // Intermediate Schema Generation
-  // =============================================================================
 
   /**
    * Convert the Drizzle schema to an intermediate schema representation
@@ -769,39 +632,18 @@ export abstract class BaseGenerator<
     const indexes: IndexDefinition[] = [];
 
     for (const idx of tableConfig.indexes) {
-      const columns = this.getIndexColumns(idx);
+      const columns = idx.config.columns.map((c) => c.name);
       if (columns.length > 0) {
-        const indexName = this.getIndexName(idx);
         indexes.push({
-          name: indexName || `idx_${columns.join("_")}`,
+          name: idx.config.name || `idx_${columns.join("_")}`,
           columns,
-          unique: this.isUniqueIndex(idx),
-          type: this.getIndexType(idx),
+          unique: idx.config.unique,
+          type: idx.config.using,
         });
       }
     }
 
     return indexes;
-  }
-
-  /**
-   * Get the name of an index
-   *
-   * @param idx - The index definition
-   * @returns The index name or undefined
-   */
-  protected getIndexName(idx: IndexConfig): string | undefined {
-    return idx.config.name;
-  }
-
-  /**
-   * Get the type of an index (e.g., btree, hash)
-   *
-   * @param idx - The index definition
-   * @returns The index type or undefined
-   */
-  protected getIndexType(idx: IndexConfig): string | undefined {
-    return idx.config.using;
   }
 
   /**
@@ -821,11 +663,10 @@ export abstract class BaseGenerator<
 
     // Primary keys
     for (const pk of tableConfig.primaryKeys) {
-      const columns = this.getPrimaryKeyColumns(pk);
+      const columns = pk.columns.map((c) => c.name);
       if (columns.length > 0) {
-        const pkName = this.getPrimaryKeyName(pk);
         constraints.push({
-          name: pkName || `pk_${columns.join("_")}`,
+          name: pk.name || `pk_${columns.join("_")}`,
           type: "primary_key",
           columns,
         });
@@ -834,11 +675,10 @@ export abstract class BaseGenerator<
 
     // Unique constraints
     for (const uc of tableConfig.uniqueConstraints) {
-      const columns = this.getUniqueConstraintColumns(uc);
+      const columns = uc.columns.map((c) => c.name);
       if (columns.length > 0) {
-        const ucName = this.getUniqueConstraintName(uc);
         constraints.push({
-          name: ucName || `uq_${columns.join("_")}`,
+          name: uc.name || `uq_${columns.join("_")}`,
           type: "unique",
           columns,
         });
@@ -854,26 +694,6 @@ export abstract class BaseGenerator<
     }
 
     return constraints;
-  }
-
-  /**
-   * Get the name of a primary key constraint
-   *
-   * @param pk - The primary key definition
-   * @returns The constraint name or undefined
-   */
-  protected getPrimaryKeyName(pk: PrimaryKeyConfig): string | undefined {
-    return pk.name;
-  }
-
-  /**
-   * Get the name of a unique constraint
-   *
-   * @param uc - The unique constraint definition
-   * @returns The constraint name or undefined
-   */
-  protected getUniqueConstraintName(uc: UniqueConstraintConfig): string | undefined {
-    return uc.name;
   }
 
   /**
