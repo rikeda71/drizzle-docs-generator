@@ -45,10 +45,10 @@ describe("DbmlFormatter", () => {
       const formatter = new DbmlFormatter();
       const dbml = formatter.format(schema);
 
-      expect(dbml).toContain("Table users {");
-      expect(dbml).toContain("id serial [primary key, not null, increment]");
-      expect(dbml).toContain("name text [not null]");
-      expect(dbml).toContain("email varchar(255) [unique]");
+      expect(dbml).toContain('Table "users" {');
+      expect(dbml).toContain('"id" serial [primary key, not null, increment]');
+      expect(dbml).toContain('"name" text [not null]');
+      expect(dbml).toContain('"email" varchar(255) [unique]');
       expect(dbml).toContain("}");
     });
 
@@ -99,9 +99,9 @@ describe("DbmlFormatter", () => {
       const formatter = new DbmlFormatter();
       const dbml = formatter.format(schema);
 
-      expect(dbml).toContain("Table users {");
-      expect(dbml).toContain("Table posts {");
-      expect(dbml).toContain("author_id integer [not null]");
+      expect(dbml).toContain('Table "users" {');
+      expect(dbml).toContain('Table "posts" {');
+      expect(dbml).toContain('"author_id" integer [not null]');
     });
 
     it("should format columns with default values", () => {
@@ -218,8 +218,8 @@ describe("DbmlFormatter", () => {
       const dbml = formatter.format(schema);
 
       expect(dbml).toContain("indexes {");
-      expect(dbml).toContain("(email) [name: 'email_idx']");
-      expect(dbml).toContain("(email) [unique, name: 'email_unique_idx']");
+      expect(dbml).toContain("(\"email\") [name: 'email_idx']");
+      expect(dbml).toContain("(\"email\") [unique, name: 'email_unique_idx']");
     });
 
     it("should format relations", () => {
@@ -277,7 +277,7 @@ describe("DbmlFormatter", () => {
       const formatter = new DbmlFormatter();
       const dbml = formatter.format(schema);
 
-      expect(dbml).toContain("Ref: posts.author_id > users.id");
+      expect(dbml).toContain('Ref: "posts"."author_id" > "users"."id"');
     });
 
     it("should format one-to-one relations", () => {
@@ -335,7 +335,7 @@ describe("DbmlFormatter", () => {
       const formatter = new DbmlFormatter();
       const dbml = formatter.format(schema);
 
-      expect(dbml).toContain("Ref: users.profile_id - profiles.id");
+      expect(dbml).toContain('Ref: "users"."profile_id" - "profiles"."id"');
     });
 
     it("should format one-to-many relations", () => {
@@ -393,7 +393,7 @@ describe("DbmlFormatter", () => {
       const formatter = new DbmlFormatter();
       const dbml = formatter.format(schema);
 
-      expect(dbml).toContain("Ref: users.id < posts.author_id");
+      expect(dbml).toContain('Ref: "users"."id" < "posts"."author_id"');
     });
 
     it("should format relations with onDelete and onUpdate", () => {
@@ -453,7 +453,9 @@ describe("DbmlFormatter", () => {
       const formatter = new DbmlFormatter();
       const dbml = formatter.format(schema);
 
-      expect(dbml).toContain("Ref: posts.author_id > users.id [delete: cascade, update: set null]");
+      expect(dbml).toContain(
+        'Ref: "posts"."author_id" > "users"."id" [delete: cascade, update: set null]',
+      );
     });
 
     it("should format PostgreSQL enums", () => {
@@ -494,7 +496,7 @@ describe("DbmlFormatter", () => {
       const formatter = new DbmlFormatter();
       const dbml = formatter.format(schema);
 
-      expect(dbml).toContain("Enum user_status {");
+      expect(dbml).toContain('Enum "user_status" {');
       expect(dbml).toContain("active");
       expect(dbml).toContain("inactive");
       expect(dbml).toContain("pending");

@@ -9,6 +9,11 @@ import {
 } from "drizzle-orm";
 import type { AnyRelation, TableRelationalConfig } from "drizzle-orm/relations";
 import { PgTable, getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
+import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/mysql-core";
+import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
+import { writeFileSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { DbmlFormatter } from "../formatter/dbml";
 
 /**
  * Legacy v0 Relations type (for backward compatibility with relations())
@@ -19,16 +24,6 @@ type LegacyRelations = {
   config: Record<string, unknown>;
 };
 
-/**
- * Output format for default values
- * - 'dbml': DBML format (backticks for SQL expressions, single quotes for strings with \' escape)
- * - 'raw': Raw format for IntermediateSchema (no wrapping for SQL, '' escape for strings)
- */
-type DefaultValueFormat = "dbml" | "raw";
-import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/mysql-core";
-import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import type {
   GeneratedRef,
   GenerateOptions,
@@ -44,51 +39,6 @@ import type {
 } from "../types";
 import { extractComments, type SchemaComments } from "../parser/comments";
 import { extractRelations, type SchemaRelations } from "../parser/relations";
-
-/**
- * Simple DBML string builder
- */
-export class DbmlBuilder {
-  private lines: string[] = [];
-  private indentLevel = 0;
-
-  /**
-   * Increase the indentation level by one
-   * @returns This instance for method chaining
-   */
-  indent(): this {
-    this.indentLevel++;
-    return this;
-  }
-
-  /**
-   * Decrease the indentation level by one (minimum 0)
-   * @returns This instance for method chaining
-   */
-  dedent(): this {
-    this.indentLevel = Math.max(0, this.indentLevel - 1);
-    return this;
-  }
-
-  /**
-   * Add a line with the current indentation level
-   * @param content - The content to add (empty string adds a blank line)
-   * @returns This instance for method chaining
-   */
-  line(content: string = ""): this {
-    const indent = "  ".repeat(this.indentLevel);
-    this.lines.push(content ? `${indent}${content}` : "");
-    return this;
-  }
-
-  /**
-   * Build the final DBML string from all added lines
-   * @returns The complete DBML content as a string
-   */
-  build(): string {
-    return this.lines.join("\n");
-  }
-}
 
 /**
  * Configuration for different database dialects
@@ -160,35 +110,9 @@ export abstract class BaseGenerator<
    * @returns The complete DBML string
    */
   generate(): string {
-    const dbml = new DbmlBuilder();
-    const tables = this.getTables();
-    const v0Relations = this.getV0Relations();
-    const v1Entries = this.getV1RelationEntries();
-
-    // Generate tables
-    for (const table of tables) {
-      this.generateTable(dbml, table);
-      dbml.line();
-    }
-
-    // Generate references from relations
-    if (this.relational) {
-      // Try v1 defineRelations() first - runtime object parsing with official types
-      if (v1Entries.length > 0) {
-        this.generateRelationalRefsFromV1(v1Entries);
-      }
-      // Fall back to v0 relations() with AST parsing
-      else if (v0Relations.length > 0 || this.parsedRelations) {
-        this.generateRelationalRefsFromV0();
-      }
-    }
-
-    // Add collected refs
-    for (const ref of this.generatedRefs) {
-      this.generateRef(dbml, ref);
-    }
-
-    return dbml.build().trim();
+    const schema = this.toIntermediateSchema();
+    const formatter = new DbmlFormatter();
+    return formatter.format(schema);
   }
 
   /**
@@ -343,52 +267,6 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Generate a table definition in DBML format
-   *
-   * Creates the complete table definition including columns, indexes, constraints,
-   * and table-level comments. Also collects foreign keys if not in relational mode.
-   *
-   * @param dbml - The DBML builder to add the table to
-   * @param table - The Drizzle table to generate
-   */
-  protected generateTable(dbml: DbmlBuilder, table: Table): void {
-    const tableName = getTableName(table);
-    const columns = getTableColumns(table);
-    const escapedName = this.dialectConfig.escapeName(tableName);
-
-    dbml.line(`Table ${escapedName} {`);
-    dbml.indent();
-
-    // Generate columns
-    for (const column of Object.values(columns)) {
-      this.generateColumn(dbml, column, tableName);
-    }
-
-    // Get table configuration (indexes, constraints, etc.)
-    const tableConfig = this.getTableConfig(table);
-
-    // Generate indexes block if any
-    if (tableConfig) {
-      this.generateIndexesBlock(dbml, tableConfig);
-    }
-
-    // Add table-level Note if comment exists
-    const tableComment = this.comments?.tables[tableName]?.comment;
-    if (tableComment) {
-      dbml.line();
-      dbml.line(`Note: '${this.escapeDbmlString(tableComment)}'`);
-    }
-
-    dbml.dedent();
-    dbml.line("}");
-
-    // Collect foreign keys if not using relational mode
-    if (!this.relational && tableConfig && tableConfig.foreignKeys.length > 0) {
-      this.collectForeignKeysFromConfig(tableName, tableConfig.foreignKeys);
-    }
-  }
-
-  /**
    * Get table configuration from a Drizzle table
    *
    * Extracts indexes, primary keys, unique constraints, and foreign keys
@@ -430,104 +308,15 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Generate a column definition in DBML format
-   *
-   * Creates a column line with type and attributes (primary key, not null, unique, etc.)
-   * and includes column-level comments if available.
-   *
-   * @param dbml - The DBML builder to add the column to
-   * @param column - The Drizzle column to generate
-   * @param tableName - Optional table name for looking up comments
-   */
-  protected generateColumn(dbml: DbmlBuilder, column: AnyColumn, tableName?: string): void {
-    const name = this.dialectConfig.escapeName(column.name);
-    const type = this.getColumnType(column);
-    const attrs = this.getColumnAttributes(column, tableName);
-    const attrStr = this.formatAttributes(attrs);
-
-    if (attrStr) {
-      dbml.line(`${name} ${type} [${attrStr}]`);
-    } else {
-      dbml.line(`${name} ${type}`);
-    }
-  }
-
-  /**
-   * Get the SQL type for a column
-   *
-   * @param column - The column to get the SQL type from
-   * @returns The SQL type string (e.g., "varchar", "integer")
-   */
-  protected getColumnType(column: AnyColumn): string {
-    return column.getSQLType();
-  }
-
-  /**
-   * Get column attributes for DBML
-   *
-   * Extracts attributes like primary key, not null, unique, increment, default value,
-   * and note from the column. Uses column metadata and comments if available.
-   *
-   * @param column - The column to get attributes from
-   * @param tableName - Optional table name for looking up comments
-   * @returns Array of attribute strings for DBML format
-   */
-  protected getColumnAttributes(column: AnyColumn, tableName?: string): string[] {
-    const attrs: string[] = [];
-
-    if (column.primary) {
-      attrs.push("primary key");
-    }
-    if (column.notNull) {
-      attrs.push("not null");
-    }
-    if (column.isUnique) {
-      attrs.push("unique");
-    }
-    if (this.dialectConfig.isIncrement(column)) {
-      attrs.push("increment");
-    }
-
-    const defaultValue = this.getDefaultValue(column);
-    if (defaultValue !== undefined) {
-      attrs.push(`default: ${defaultValue}`);
-    }
-
-    // Add note attribute if column comment exists
-    if (tableName) {
-      const columnComment = this.comments?.tables[tableName]?.columns[column.name]?.comment;
-      if (columnComment) {
-        attrs.push(`note: '${this.escapeDbmlString(columnComment)}'`);
-      }
-    }
-
-    return attrs;
-  }
-
-  /**
-   * Format attributes into a string
-   *
-   * @param attrs - Array of attribute strings
-   * @returns Comma-separated attribute string
-   */
-  protected formatAttributes(attrs: string[]): string {
-    return attrs.join(", ");
-  }
-
-  /**
    * Get the default value for a column
    *
    * Extracts and formats the default value from a column, handling SQL expressions,
    * objects, and primitive values. Returns undefined if no default value exists.
    *
    * @param column - The column to get the default value from
-   * @param format - Output format: 'dbml' for DBML output, 'raw' for IntermediateSchema
    * @returns Formatted default value string or undefined
    */
-  protected getDefaultValue(
-    column: AnyColumn,
-    format: DefaultValueFormat = "dbml",
-  ): string | undefined {
+  protected getDefaultValue(column: AnyColumn): string | undefined {
     if (!column.hasDefault) {
       return undefined;
     }
@@ -555,23 +344,19 @@ export abstract class BaseGenerator<
             sqlParts.push(String((chunk as { value: unknown }).value));
           }
         }
-        const sql = sqlParts.join("");
-        return format === "dbml" ? `\`${sql}\`` : sql;
+        return sqlParts.join("");
       }
       if ("sql" in defaultValue) {
-        const sql = (defaultValue as { sql: string }).sql;
-        return format === "dbml" ? `\`${sql}\`` : sql;
+        return (defaultValue as { sql: string }).sql;
       }
       // JSON object
-      const json = JSON.stringify(defaultValue);
-      return format === "dbml" ? `'${json}'` : json;
+      return JSON.stringify(defaultValue);
     }
 
     // Handle primitives
     if (typeof defaultValue === "string") {
-      // DBML uses \' for escaping, raw uses '' (SQL standard)
-      const escaped =
-        format === "dbml" ? defaultValue.replace(/'/g, "\\'") : defaultValue.replace(/'/g, "''");
+      // Use '' escape (SQL standard)
+      const escaped = defaultValue.replace(/'/g, "''");
       return `'${escaped}'`;
     }
     if (typeof defaultValue === "number" || typeof defaultValue === "boolean") {
@@ -579,62 +364,6 @@ export abstract class BaseGenerator<
     }
 
     return undefined;
-  }
-
-  /**
-   * Generate indexes block from table configuration
-   *
-   * Creates the indexes block containing primary keys, unique constraints,
-   * and regular indexes with their respective attributes.
-   *
-   * @param dbml - The DBML builder to add the indexes block to
-   * @param tableConfig - The table configuration containing index information
-   */
-  protected generateIndexesBlock(dbml: DbmlBuilder, tableConfig: TableConfig): void {
-    const { indexes, primaryKeys, uniqueConstraints } = tableConfig;
-
-    if (indexes.length === 0 && primaryKeys.length === 0 && uniqueConstraints.length === 0) {
-      return;
-    }
-
-    dbml.line();
-    dbml.line("indexes {");
-    dbml.indent();
-
-    // Primary keys
-    for (const pk of primaryKeys) {
-      const columns = this.getPrimaryKeyColumns(pk);
-      if (columns.length > 0) {
-        const colStr = columns.map((c) => this.dialectConfig.escapeName(c)).join(", ");
-        dbml.line(`(${colStr}) [pk]`);
-      }
-    }
-
-    // Unique constraints
-    for (const uc of uniqueConstraints) {
-      const columns = this.getUniqueConstraintColumns(uc);
-      if (columns.length > 0) {
-        const colStr = columns.map((c) => this.dialectConfig.escapeName(c)).join(", ");
-        dbml.line(`(${colStr}) [unique]`);
-      }
-    }
-
-    // Regular indexes
-    for (const idx of indexes) {
-      const columns = this.getIndexColumns(idx);
-      if (columns.length > 0) {
-        const colStr = columns.map((c) => this.dialectConfig.escapeName(c)).join(", ");
-        const attrs: string[] = [];
-        if (this.isUniqueIndex(idx)) {
-          attrs.push("unique");
-        }
-        const attrStr = attrs.length > 0 ? ` [${attrs.join(", ")}]` : "";
-        dbml.line(`(${colStr})${attrStr}`);
-      }
-    }
-
-    dbml.dedent();
-    dbml.line("}");
   }
 
   /**
@@ -993,107 +722,6 @@ export abstract class BaseGenerator<
     return false;
   }
 
-  /**
-   * Get unique key for a relation to avoid duplicates
-   *
-   * Creates a consistent key by sorting table names alphabetically.
-   *
-   * @param tableName - The source table name
-   * @param relation - The relation object
-   * @returns A unique key string for the relation
-   */
-  protected getRelationKey(tableName: string, relation: unknown): string {
-    const rel = relation as { referencedTable?: Table };
-    const referencedTable = rel.referencedTable ? getTableName(rel.referencedTable) : "unknown";
-    const tables = [tableName, referencedTable].sort();
-    return `${tables[0]}-${tables[1]}`;
-  }
-
-  /**
-   * Parse a relation into a GeneratedRef
-   *
-   * Extracts relation information from a legacy relation object and converts
-   * it to a GeneratedRef for DBML output.
-   *
-   * @param tableName - The source table name
-   * @param relation - The relation object to parse
-   * @returns GeneratedRef object or undefined if parsing fails
-   */
-  protected parseRelation(tableName: string, relation: unknown): GeneratedRef | undefined {
-    try {
-      const rel = relation as {
-        referencedTable?: Table;
-        sourceColumns?: AnyColumn[];
-        referencedColumns?: AnyColumn[];
-        relationType?: string;
-      };
-
-      if (!rel.referencedTable) {
-        return undefined;
-      }
-
-      const referencedTable = getTableName(rel.referencedTable);
-
-      // Try to get field info from the relation
-      const fields = rel.sourceColumns || [];
-      const references = rel.referencedColumns || [];
-
-      if (fields.length === 0 || references.length === 0) {
-        // Cannot generate ref without column info
-        return undefined;
-      }
-
-      const fromColumns = fields.map((c: AnyColumn) => c.name);
-      const toColumns = references.map((c: AnyColumn) => c.name);
-
-      // Determine relation type
-      let type: "<" | ">" | "-" = ">";
-      if (rel.relationType === "one") {
-        type = "-";
-      }
-
-      return {
-        fromTable: tableName,
-        fromColumns,
-        toTable: referencedTable,
-        toColumns,
-        type,
-      };
-    } catch {
-      return undefined;
-    }
-  }
-
-  /**
-   * Generate a reference line in DBML format
-   *
-   * Creates a Ref line showing the relationship between tables with optional
-   * onDelete and onUpdate actions.
-   *
-   * @param dbml - The DBML builder to add the reference to
-   * @param ref - The reference definition to generate
-   */
-  protected generateRef(dbml: DbmlBuilder, ref: GeneratedRef): void {
-    const from = `${this.dialectConfig.escapeName(ref.fromTable)}.${ref.fromColumns.map((c) => this.dialectConfig.escapeName(c)).join(", ")}`;
-    const to = `${this.dialectConfig.escapeName(ref.toTable)}.${ref.toColumns.map((c) => this.dialectConfig.escapeName(c)).join(", ")}`;
-
-    let refLine = `Ref: ${from} ${ref.type} ${to}`;
-
-    const attrs: string[] = [];
-    if (ref.onDelete && ref.onDelete !== "no action") {
-      attrs.push(`delete: ${ref.onDelete}`);
-    }
-    if (ref.onUpdate && ref.onUpdate !== "no action") {
-      attrs.push(`update: ${ref.onUpdate}`);
-    }
-
-    if (attrs.length > 0) {
-      refLine += ` [${attrs.join(", ")}]`;
-    }
-
-    dbml.line(refLine);
-  }
-
   // Helper methods for extracting column information from constraints
 
   /**
@@ -1293,7 +921,7 @@ export abstract class BaseGenerator<
    */
   protected columnToDefinition(column: AnyColumn, tableName: string): ColumnDefinition {
     const columnComment = this.comments?.tables[tableName]?.columns[column.name]?.comment;
-    const defaultValue = this.getDefaultValue(column, "raw");
+    const defaultValue = this.getDefaultValue(column);
 
     return {
       name: column.name,
@@ -1526,18 +1154,6 @@ export abstract class BaseGenerator<
     // Default implementation returns empty array
     // Override in PgGenerator for PostgreSQL enum support
     return [];
-  }
-
-  /**
-   * Escape a string for use in DBML single-quoted strings
-   *
-   * Escapes backslashes, single quotes, and newlines for proper DBML formatting.
-   *
-   * @param str - The string to escape
-   * @returns The escaped string safe for DBML
-   */
-  private escapeDbmlString(str: string): string {
-    return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
   }
 }
 
