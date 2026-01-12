@@ -5,13 +5,14 @@
 
 Drizzle ORM スキーマから DBML を生成する CLI。JSDoc コメントを Note 句として出力できる。
 
-**✨ 機能:**
+**機能:**
 
-- 📁 **ディレクトリインポート対応**: ディレクトリ内のすべてのスキーマファイルを自動インポート
-- 🔄 **拡張子不要**: 拡張子なしのインポートに対応 (例: `import { users } from './users'`)
-- 📝 **JSDoc コメント**: 自動的に DBML の Note 句に変換
-- 🔗 **リレーション対応**: `relations()` または `defineRelations()` から参照を生成
-- 👀 **Watch モード**: ファイル変更時に自動再生成
+- **ディレクトリインポート対応**: ディレクトリ内のすべてのスキーマファイルを自動インポート
+- **拡張子不要**: 拡張子なしのインポートに対応 (例: `import { users } from './users'`)
+- **JSDoc コメント**: 自動的に DBML の Note 句に変換
+- **リレーション対応**: `relations()` または `defineRelations()` から参照を生成
+- **Watch モード**: ファイル変更時に自動再生成
+- **複数の出力形式**: DBML (デフォルト) および ER 図付き Markdown
 
 [English README](./README.md)
 
@@ -24,6 +25,8 @@ pnpm add -g drizzle-docs-generator
 ```
 
 ## 使い方
+
+### DBML 出力 (デフォルト)
 
 ```bash
 # 基本 - 単一ファイル
@@ -42,14 +45,31 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql -r
 drizzle-docs generate ./src/db/schema.ts -d postgresql -w
 ```
 
+### Markdown 出力
+
+```bash
+# Markdown 出力 (ER 図付き複数ファイル)
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown -o ./docs
+
+# Markdown 出力 (単一ファイル)
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --single-file -o schema.md
+
+# ER 図なしの Markdown
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --no-er-diagram -o ./docs
+```
+
 ### オプション
 
-| オプション                | 説明                                               |
-| ------------------------- | -------------------------------------------------- |
-| `-o, --output <file>`     | 出力ファイルパス                                   |
-| `-d, --dialect <dialect>` | DB 種別: `postgresql` (default), `mysql`, `sqlite` |
-| `-r, --relational`        | relations() 定義からリファレンスを生成             |
-| `-w, --watch`             | ファイル変更時に自動再生成                         |
+| オプション                | 説明                                                  |
+| ------------------------- | ----------------------------------------------------- |
+| `-o, --output <path>`     | 出力ファイルまたはディレクトリパス                    |
+| `-d, --dialect <dialect>` | DB 種別: `postgresql` (デフォルト), `mysql`, `sqlite` |
+| `-f, --format <format>`   | 出力形式: `dbml` (デフォルト), `markdown`             |
+| `-r, --relational`        | relations() 定義からリファレンスを生成                |
+| `-w, --watch`             | ファイル変更時に自動再生成                            |
+| `--single-file`           | Markdown を単一ファイルで出力 (markdown のみ)         |
+| `--no-er-diagram`         | ER 図を Markdown 出力から除外                         |
+| `--force`                 | 確認なしで既存ファイルを上書き                        |
 
 ## 例
 
@@ -63,7 +83,7 @@ export const users = pgTable("users", {
 });
 ```
 
-↓
+### DBML 出力
 
 ```dbml
 Table users {
@@ -73,6 +93,23 @@ Table users {
   Note: 'ユーザーテーブル'
 }
 ```
+
+### Markdown 出力
+
+```markdown
+# users
+
+ユーザーテーブル
+
+## Columns
+
+| Name | Type   | Nullable | Default | Comment    |
+| ---- | ------ | -------- | ------- | ---------- |
+| id   | serial | No       |         | ユーザーID |
+| name | text   | No       |         | ユーザー名 |
+```
+
+詳細なサンプル出力は [examples/](./examples/) を参照してください。
 
 ## API
 

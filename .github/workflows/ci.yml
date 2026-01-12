@@ -42,3 +42,8 @@ jobs:
 
       - name: Integration Test
         run: pnpm test:integration
+
+      - name: Verify examples are up to date
+        run: |
+          pnpm generate:examples
+          git diff --exit-code examples/ || (echo "Examples are out of date. Run 'pnpm generate:examples' and commit the changes." && exit 1)
