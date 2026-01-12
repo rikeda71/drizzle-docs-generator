@@ -18,6 +18,13 @@ type LegacyRelations = {
   table: Table;
   config: Record<string, unknown>;
 };
+
+/**
+ * Output format for default values
+ * - 'dbml': DBML format (backticks for SQL expressions, single quotes for strings with \' escape)
+ * - 'raw': Raw format for IntermediateSchema (no wrapping for SQL, '' escape for strings)
+ */
+type DefaultValueFormat = "dbml" | "raw";
 import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/mysql-core";
 import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -369,7 +376,7 @@ export abstract class BaseGenerator<
     const tableComment = this.comments?.tables[tableName]?.comment;
     if (tableComment) {
       dbml.line();
-      dbml.line(`Note: '${escapeDbmlString(tableComment)}'`);
+      dbml.line(`Note: '${this.escapeDbmlString(tableComment)}'`);
     }
 
     dbml.dedent();
@@ -490,7 +497,7 @@ export abstract class BaseGenerator<
     if (tableName) {
       const columnComment = this.comments?.tables[tableName]?.columns[column.name]?.comment;
       if (columnComment) {
-        attrs.push(`note: '${escapeDbmlString(columnComment)}'`);
+        attrs.push(`note: '${this.escapeDbmlString(columnComment)}'`);
       }
     }
 
@@ -514,9 +521,13 @@ export abstract class BaseGenerator<
    * objects, and primitive values. Returns undefined if no default value exists.
    *
    * @param column - The column to get the default value from
+   * @param format - Output format: 'dbml' for DBML output, 'raw' for IntermediateSchema
    * @returns Formatted default value string or undefined
    */
-  protected getDefaultValue(column: AnyColumn): string | undefined {
+  protected getDefaultValue(
+    column: AnyColumn,
+    format: DefaultValueFormat = "dbml",
+  ): string | undefined {
     if (!column.hasDefault) {
       return undefined;
     }
@@ -544,18 +555,24 @@ export abstract class BaseGenerator<
             sqlParts.push(String((chunk as { value: unknown }).value));
           }
         }
-        return `\`${sqlParts.join("")}\``;
+        const sql = sqlParts.join("");
+        return format === "dbml" ? `\`${sql}\`` : sql;
       }
       if ("sql" in defaultValue) {
-        return `\`${(defaultValue as { sql: string }).sql}\``;
+        const sql = (defaultValue as { sql: string }).sql;
+        return format === "dbml" ? `\`${sql}\`` : sql;
       }
       // JSON object
-      return `'${JSON.stringify(defaultValue)}'`;
+      const json = JSON.stringify(defaultValue);
+      return format === "dbml" ? `'${json}'` : json;
     }
 
     // Handle primitives
     if (typeof defaultValue === "string") {
-      return `'${defaultValue.replace(/'/g, "\\'")}'`;
+      // DBML uses \' for escaping, raw uses '' (SQL standard)
+      const escaped =
+        format === "dbml" ? defaultValue.replace(/'/g, "\\'") : defaultValue.replace(/'/g, "''");
+      return `'${escaped}'`;
     }
     if (typeof defaultValue === "number" || typeof defaultValue === "boolean") {
       return String(defaultValue);
@@ -1276,7 +1293,7 @@ export abstract class BaseGenerator<
    */
   protected columnToDefinition(column: AnyColumn, tableName: string): ColumnDefinition {
     const columnComment = this.comments?.tables[tableName]?.columns[column.name]?.comment;
-    const defaultValue = this.getDefaultValueForIntermediate(column);
+    const defaultValue = this.getDefaultValue(column, "raw");
 
     return {
       name: column.name,
@@ -1288,61 +1305,6 @@ export abstract class BaseGenerator<
       autoIncrement: this.dialectConfig.isIncrement(column) || undefined,
       comment: columnComment,
     };
-  }
-
-  /**
-   * Get the default value for intermediate schema format
-   *
-   * Similar to getDefaultValue but returns raw string without DBML formatting
-   *
-   * @param column - The column to get the default value from
-   * @returns Default value string or undefined
-   */
-  protected getDefaultValueForIntermediate(column: AnyColumn): string | undefined {
-    if (!column.hasDefault) {
-      return undefined;
-    }
-
-    const defaultValue = column.default;
-
-    if (defaultValue === null) {
-      return "null";
-    }
-
-    if (defaultValue === undefined) {
-      return undefined;
-    }
-
-    // Handle SQL expressions
-    if (typeof defaultValue === "object" && defaultValue !== null) {
-      if ("queryChunks" in defaultValue) {
-        const chunks = (defaultValue as { queryChunks: unknown[] }).queryChunks;
-        const sqlParts: string[] = [];
-        for (const chunk of chunks) {
-          if (typeof chunk === "string") {
-            sqlParts.push(chunk);
-          } else if (typeof chunk === "object" && chunk !== null && "value" in chunk) {
-            sqlParts.push(String((chunk as { value: unknown }).value));
-          }
-        }
-        return sqlParts.join("");
-      }
-      if ("sql" in defaultValue) {
-        return (defaultValue as { sql: string }).sql;
-      }
-      // JSON object
-      return JSON.stringify(defaultValue);
-    }
-
-    // Handle primitives
-    if (typeof defaultValue === "string") {
-      return `'${defaultValue.replace(/'/g, "''")}'`;
-    }
-    if (typeof defaultValue === "number" || typeof defaultValue === "boolean") {
-      return String(defaultValue);
-    }
-
-    return undefined;
   }
 
   /**
@@ -1565,6 +1527,18 @@ export abstract class BaseGenerator<
     // Override in PgGenerator for PostgreSQL enum support
     return [];
   }
+
+  /**
+   * Escape a string for use in DBML single-quoted strings
+   *
+   * Escapes backslashes, single quotes, and newlines for proper DBML formatting.
+   *
+   * @param str - The string to escape
+   * @returns The escaped string safe for DBML
+   */
+  private escapeDbmlString(str: string): string {
+    return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
+  }
 }
 
 /**
@@ -1581,16 +1555,4 @@ export function writeDbmlFile(filePath: string, content: string): void {
   const dir = dirname(resolvedPath);
   mkdirSync(dir, { recursive: true });
   writeFileSync(resolvedPath, content, "utf-8");
-}
-
-/**
- * Escape a string for use in DBML single-quoted strings
- *
- * Escapes backslashes, single quotes, and newlines for proper DBML formatting.
- *
- * @param str - The string to escape
- * @returns The escaped string safe for DBML
- */
-function escapeDbmlString(str: string): string {
-  return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
 }
