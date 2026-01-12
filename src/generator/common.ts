@@ -44,7 +44,7 @@ export interface DialectConfig {
 /**
  * Configuration for an index definition
  */
-export interface IndexConfig {
+interface IndexConfig {
   config: {
     columns: Array<{ name: string }>;
     name?: string;
@@ -56,7 +56,7 @@ export interface IndexConfig {
 /**
  * Configuration for a primary key constraint
  */
-export interface PrimaryKeyConfig {
+interface PrimaryKeyConfig {
   columns: Array<{ name: string }>;
   name?: string;
 }
@@ -64,7 +64,7 @@ export interface PrimaryKeyConfig {
 /**
  * Configuration for a unique constraint
  */
-export interface UniqueConstraintConfig {
+interface UniqueConstraintConfig {
   columns: Array<{ name: string }>;
   name?: string;
 }

@@ -12,7 +12,7 @@ import type { OutputFormatter, FormatterOptions } from "./types";
 /**
  * Link format for table references
  */
-export type LinkFormat = "anchor" | "file";
+type LinkFormat = "anchor" | "file";
 
 /**
  * Options for MarkdownFormatter

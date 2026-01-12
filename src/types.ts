@@ -1,8 +1,4 @@
-import type { AnyColumn, Table } from "drizzle-orm";
 import type { SchemaComments } from "./parser/comments";
-
-// Re-export Drizzle types for convenience
-export type { AnyColumn, Table };
 
 /**
  * Options for DBML generation

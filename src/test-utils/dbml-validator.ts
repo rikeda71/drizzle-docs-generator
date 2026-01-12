@@ -185,7 +185,7 @@ export function countRefs(dbml: string): number {
  * @param tableName - Table name to check
  * @returns true if the table heading exists
  */
-export function hasMarkdownTable(markdown: string, tableName: string): boolean {
+function hasMarkdownTable(markdown: string, tableName: string): boolean {
   return markdown.includes(`## ${tableName}`);
 }
 
