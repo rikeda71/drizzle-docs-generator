@@ -1,64 +1,80 @@
 # CLAUDE.md
 
-Claude Code 向けの開発ガイド。
+Development guide for Claude Code.
 
-## 概要
+## Overview
 
-**drizzle-docs-generator** - Drizzle ORM スキーマから DBML を生成する CLI。JSDoc コメントを Note 句として出力できる。
+**drizzle-docs-generator** - CLI tool to generate DBML and Markdown documentation from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
 
-詳細は [README.md](./README.md) / [README.ja.md](./README.ja.md) を参照。
+See [README.md](./README.md) / [README.ja.md](./README.ja.md) for details.
 
-## パッケージマネージャ
+## Package Manager
 
-**pnpm** を使用（v10.24.0）。npm/yarn は使わないこと。
+Use **pnpm** (v10.24.0). Do not use npm/yarn.
 
-## コマンド
+## Commands
 
 ```bash
-pnpm install          # 依存関係インストール
-pnpm build            # ビルド
-pnpm test             # ユニットテスト (watch mode)
-pnpm test:run         # ユニットテスト (1回)
-pnpm test:integration # 統合テスト (要ビルド)
-pnpm dev              # ビルド (watch mode)
-pnpm format           # フォーマット (oxfmt)
-pnpm lint             # リント (oxlint)
-pnpm typecheck        # 型チェック
+pnpm install          # Install dependencies
+pnpm build            # Build
+pnpm test             # Unit tests (watch mode)
+pnpm test:run         # Unit tests (single run)
+pnpm test:integration # Integration tests (requires build)
+pnpm dev              # Build (watch mode)
+pnpm format           # Format (oxfmt)
+pnpm lint             # Lint (oxlint)
+pnpm typecheck        # Type check
 ```
 
-## コミット前に必ず実行
+## Before Committing
 
 ```bash
 pnpm format && pnpm lint && pnpm typecheck && pnpm test:run
 ```
 
-## アーキテクチャ
+## Architecture
 
 ### src/parser/
 
-- `comments.ts`: TypeScript Compiler API で JSDoc コメントを抽出
-- `relations.ts`: relations() 定義を抽出
-- `index.ts`: 公開 API
+- `comments.ts`: Extracts JSDoc comments using TypeScript Compiler API
+- `relations.ts`: Extracts relations() definitions
+- `index.ts`: Public API
 
 ### src/generator/
 
-- `common.ts`: 基底クラス、DBML ビルダー
-- `pg.ts`, `mysql.ts`, `sqlite.ts`: 各 DB 用ジェネレータ
-- `index.ts`: 公開 API
+- `common.ts`: Base class, DBML builder
+- `pg.ts`, `mysql.ts`, `sqlite.ts`: DB-specific generators
+- `index.ts`: Public API
+
+### src/formatter/
+
+- `markdown.ts`: Markdown format output
+- `mermaid.ts`: Mermaid ER diagram generator
+- `dbml.ts`: DBML format output
+- `dbml-builder.ts`: DBML string builder
+- `index.ts`: Public API
 
 ### src/cli/
 
-- `index.ts`: Commander.js で実装した CLI
+- `index.ts`: CLI implemented with Commander.js
 
-## 依存関係
+## Dependencies
 
-- `typescript`: AST パース
-- `commander`: CLI フレームワーク
+- `typescript`: AST parsing
+- `commander`: CLI framework
 - `drizzle-orm`: Drizzle ORM v1 beta
 
-## メモ
+## Type Guidelines
 
-- ライセンス: MIT
+### Boolean vs Union Types
+
+- Use `boolean` **only** when the value will permanently be `true` or `false` with no possibility of additional states
+- Prefer **union types** for values that might have more than two states in the future
+- Example: Use `"enabled" | "disabled"` instead of `boolean` if a third state like `"pending"` could be added later
+
+## Notes
+
+- License: MIT
 - Node.js >= 24
 - Drizzle ORM v1 beta (1.0.0-beta.10+)
-- `gh` コマンド使用時は `--repo rikeda71/drizzle-docs-generator` オプションを付けること
+- When using `gh` command, add `--repo rikeda71/drizzle-docs-generator` option

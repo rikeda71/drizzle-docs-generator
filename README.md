@@ -5,13 +5,14 @@
 
 CLI tool to generate DBML from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
 
-**✨ Features:**
+**Features:**
 
-- 📁 **Directory Import Support**: Import all schema files from a directory
-- 🔄 **No File Extension Required**: Works with extensionless imports (e.g., `import { users } from './users'`)
-- 📝 **JSDoc Comments**: Automatically extracts and converts to DBML Notes
-- 🔗 **Relations Support**: Generate refs from `relations()` or `defineRelations()`
-- 👀 **Watch Mode**: Auto-regenerate on file changes
+- **Directory Import Support**: Import all schema files from a directory
+- **No File Extension Required**: Works with extensionless imports (e.g., `import { users } from './users'`)
+- **JSDoc Comments**: Automatically extracts and converts to DBML Notes
+- **Relations Support**: Generate refs from `relations()` or `defineRelations()`
+- **Watch Mode**: Auto-regenerate on file changes
+- **Multiple Output Formats**: DBML (default) and Markdown with ER diagrams
 
 [日本語版READMEはこちら](./README.ja.md)
 
@@ -24,6 +25,8 @@ pnpm add -g drizzle-docs-generator
 ```
 
 ## Usage
+
+### DBML Output (Default)
 
 ```bash
 # Basic - single file
@@ -42,14 +45,31 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql -r
 drizzle-docs generate ./src/db/schema.ts -d postgresql -w
 ```
 
+### Markdown Output
+
+```bash
+# Markdown output (multiple files with ER diagram)
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown -o ./docs
+
+# Markdown output (single file)
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --single-file -o schema.md
+
+# Markdown without ER diagram
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --no-er-diagram -o ./docs
+```
+
 ### Options
 
 | Option                    | Description                                         |
 | ------------------------- | --------------------------------------------------- |
-| `-o, --output <file>`     | Output file path                                    |
+| `-o, --output <path>`     | Output file or directory path                       |
 | `-d, --dialect <dialect>` | Database: `postgresql` (default), `mysql`, `sqlite` |
+| `-f, --format <format>`   | Output format: `dbml` (default), `markdown`         |
 | `-r, --relational`        | Generate refs from relations() definitions          |
 | `-w, --watch`             | Regenerate on file changes                          |
+| `--single-file`           | Output Markdown as a single file (markdown only)    |
+| `--no-er-diagram`         | Exclude ER diagram from Markdown output             |
+| `--force`                 | Overwrite existing files without confirmation       |
 
 ## Example
 
@@ -63,7 +83,7 @@ export const users = pgTable("users", {
 });
 ```
 
-↓
+### DBML Output
 
 ```dbml
 Table users {
@@ -73,6 +93,23 @@ Table users {
   Note: 'Users table'
 }
 ```
+
+### Markdown Output
+
+```markdown
+# users
+
+Users table
+
+## Columns
+
+| Name | Type   | Nullable | Default | Comment   |
+| ---- | ------ | -------- | ------- | --------- |
+| id   | serial | No       |         | User ID   |
+| name | text   | No       |         | User name |
+```
+
+See [examples/](./examples/) for more detailed output samples.
 
 ## API
 
