@@ -40,3 +40,7 @@ export type {
   EnumDefinition,
   IntermediateSchema,
 } from "./types";
+
+// Output Formatters
+export { DbmlFormatter } from "./formatter/index";
+export type { OutputFormatter, FormatterOptions } from "./formatter/index";
