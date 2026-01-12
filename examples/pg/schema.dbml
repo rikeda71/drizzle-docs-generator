@@ -60,8 +60,8 @@ Table "users" {
   Note: 'User accounts table storing basic user information'
 }
 
+Ref: "posts"."author_id" > "users"."id"
 Ref: "comments"."post_id" > "posts"."id"
 Ref: "comments"."author_id" > "users"."id"
 Ref: "post_tags"."post_id" > "posts"."id"
 Ref: "post_tags"."tag_id" > "tags"."id"
-Ref: "posts"."author_id" > "users"."id"
