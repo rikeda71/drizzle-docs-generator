@@ -1,7 +1,7 @@
 import { type AnyColumn, getTableColumns } from "drizzle-orm";
 import { PgEnumColumn } from "drizzle-orm/pg-core";
 import { BaseGenerator, DbmlBuilder, writeDbmlFile, type DialectConfig } from "./common";
-import type { GenerateOptions } from "../types";
+import type { GenerateOptions, EnumDefinition } from "../types";
 
 /**
  * PostgreSQL-specific DBML generator
@@ -78,6 +78,28 @@ export class PgGenerator<
     }
     dbml.dedent();
     dbml.line("}");
+  }
+
+  /**
+   * Collect enum definitions for intermediate schema
+   *
+   * Overrides the base implementation to extract PostgreSQL enum types
+   * from enum columns in the schema.
+   *
+   * @returns Array of enum definitions
+   */
+  protected override collectEnumDefinitions(): EnumDefinition[] {
+    const enums = this.collectEnums();
+    const enumDefinitions: EnumDefinition[] = [];
+
+    for (const [name, values] of enums) {
+      enumDefinitions.push({
+        name,
+        values,
+      });
+    }
+
+    return enumDefinitions;
   }
 }
 

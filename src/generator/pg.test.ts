@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { pgGenerate } from "./pg";
+import { pgGenerate, PgGenerator } from "./pg";
 import {
   pgTable,
   serial,
@@ -764,5 +764,428 @@ export const users = pgTable("users", {
 
     expect(dbml).toContain("Note: 'User\\'s table with \\'quotes\\''");
     expect(dbml).toContain("note: 'It\\'s the primary key'");
+  });
+});
+
+describe("PgGenerator.toIntermediateSchema", () => {
+  it("should convert a simple table to intermediate schema", () => {
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name").notNull(),
+      email: varchar("email", { length: 255 }).unique(),
+    });
+
+    const generator = new PgGenerator({ schema: { users } });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.databaseType).toBe("postgresql");
+    expect(schema.tables).toHaveLength(1);
+    expect(schema.tables[0].name).toBe("users");
+    expect(schema.tables[0].columns).toHaveLength(3);
+
+    // Check id column
+    const idColumn = schema.tables[0].columns.find((c: { name: string }) => c.name === "id");
+    expect(idColumn).toBeDefined();
+    expect(idColumn.type).toBe("serial");
+    expect(idColumn.primaryKey).toBe(true);
+    expect(idColumn.nullable).toBe(false);
+    expect(idColumn.autoIncrement).toBe(true);
+
+    // Check name column
+    const nameColumn = schema.tables[0].columns.find((c: { name: string }) => c.name === "name");
+    expect(nameColumn).toBeDefined();
+    expect(nameColumn.type).toBe("text");
+    expect(nameColumn.nullable).toBe(false);
+
+    // Check email column
+    const emailColumn = schema.tables[0].columns.find((c: { name: string }) => c.name === "email");
+    expect(emailColumn).toBeDefined();
+    expect(emailColumn.type).toBe("varchar(255)");
+    expect(emailColumn.unique).toBe(true);
+    expect(emailColumn.nullable).toBe(true);
+  });
+
+  it("should handle columns with default values", () => {
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      active: boolean("active").default(true),
+      role: text("role").default("user"),
+      createdAt: timestamp("created_at").defaultNow(),
+    });
+
+    const generator = new PgGenerator({ schema: { users } });
+    const schema = generator.toIntermediateSchema();
+
+    const activeColumn = schema.tables[0].columns.find(
+      (c: { name: string }) => c.name === "active",
+    );
+    expect(activeColumn.defaultValue).toBe("true");
+
+    const roleColumn = schema.tables[0].columns.find((c: { name: string }) => c.name === "role");
+    expect(roleColumn.defaultValue).toBe("'user'");
+  });
+
+  it("should extract foreign key relations", () => {
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const posts = pgTable(
+      "posts",
+      {
+        id: serial("id").primaryKey(),
+        authorId: integer("author_id").notNull(),
+      },
+      (table) => [
+        foreignKey({
+          columns: [table.authorId],
+          foreignColumns: [users.id],
+        }),
+      ],
+    );
+
+    const generator = new PgGenerator({ schema: { users, posts } });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.relations).toHaveLength(1);
+    expect(schema.relations[0].fromTable).toBe("posts");
+    expect(schema.relations[0].fromColumns).toEqual(["author_id"]);
+    expect(schema.relations[0].toTable).toBe("users");
+    expect(schema.relations[0].toColumns).toEqual(["id"]);
+    expect(schema.relations[0].type).toBe("many-to-one");
+  });
+
+  it("should extract composite primary keys as constraints", () => {
+    const userRoles = pgTable(
+      "user_roles",
+      {
+        userId: integer("user_id").notNull(),
+        roleId: integer("role_id").notNull(),
+      },
+      (table) => [primaryKey({ columns: [table.userId, table.roleId] })],
+    );
+
+    const generator = new PgGenerator({ schema: { userRoles } });
+    const schema = generator.toIntermediateSchema();
+
+    const pkConstraint = schema.tables[0].constraints.find(
+      (c: { type: string }) => c.type === "primary_key",
+    );
+    expect(pkConstraint).toBeDefined();
+    expect(pkConstraint.columns).toContain("user_id");
+    expect(pkConstraint.columns).toContain("role_id");
+  });
+
+  it("should extract unique constraints", () => {
+    const users = pgTable(
+      "users",
+      {
+        id: serial("id").primaryKey(),
+        email: varchar("email", { length: 255 }),
+        username: varchar("username", { length: 50 }),
+      },
+      (table) => [unique().on(table.email, table.username)],
+    );
+
+    const generator = new PgGenerator({ schema: { users } });
+    const schema = generator.toIntermediateSchema();
+
+    const uniqueConstraint = schema.tables[0].constraints.find(
+      (c: { type: string }) => c.type === "unique",
+    );
+    expect(uniqueConstraint).toBeDefined();
+    expect(uniqueConstraint.columns).toContain("email");
+    expect(uniqueConstraint.columns).toContain("username");
+  });
+
+  it("should extract indexes", () => {
+    const users = pgTable(
+      "users",
+      {
+        id: serial("id").primaryKey(),
+        email: varchar("email", { length: 255 }),
+        name: text("name"),
+      },
+      (table) => [index("email_idx").on(table.email)],
+    );
+
+    const generator = new PgGenerator({ schema: { users } });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.tables[0].indexes).toHaveLength(1);
+    expect(schema.tables[0].indexes[0].name).toBe("email_idx");
+    expect(schema.tables[0].indexes[0].columns).toEqual(["email"]);
+    expect(schema.tables[0].indexes[0].unique).toBe(false);
+  });
+
+  it("should include comments in intermediate schema", () => {
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const comments: SchemaComments = {
+      tables: {
+        users: {
+          comment: "User accounts table",
+          columns: {
+            id: { comment: "Primary key" },
+            name: { comment: "User display name" },
+          },
+        },
+      },
+    };
+
+    const generator = new PgGenerator({ schema: { users }, comments });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.tables[0].comment).toBe("User accounts table");
+
+    const idColumn = schema.tables[0].columns.find((c: { name: string }) => c.name === "id");
+    expect(idColumn.comment).toBe("Primary key");
+
+    const nameColumn = schema.tables[0].columns.find((c: { name: string }) => c.name === "name");
+    expect(nameColumn.comment).toBe("User display name");
+  });
+
+  it("should return empty schema for empty input", () => {
+    const generator = new PgGenerator({ schema: {} });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.databaseType).toBe("postgresql");
+    expect(schema.tables).toHaveLength(0);
+    expect(schema.relations).toHaveLength(0);
+    expect(schema.enums).toHaveLength(0);
+  });
+});
+
+describe("PgGenerator.toIntermediateSchema with enums", () => {
+  it("should extract PostgreSQL enums", async () => {
+    const { pgEnum } = await import("drizzle-orm/pg-core");
+
+    const statusEnum = pgEnum("status", ["active", "inactive", "pending"]);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      status: statusEnum("status").notNull(),
+    });
+
+    const generator = new PgGenerator({ schema: { users, statusEnum } });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.enums).toHaveLength(1);
+    expect(schema.enums[0].name).toBe("status");
+    expect(schema.enums[0].values).toEqual(["active", "inactive", "pending"]);
+  });
+
+  it("should extract multiple enums", async () => {
+    const { pgEnum } = await import("drizzle-orm/pg-core");
+
+    const statusEnum = pgEnum("status", ["active", "inactive"]);
+    const roleEnum = pgEnum("role", ["admin", "user", "guest"]);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      status: statusEnum("status"),
+      role: roleEnum("role"),
+    });
+
+    const generator = new PgGenerator({ schema: { users, statusEnum, roleEnum } });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.enums).toHaveLength(2);
+
+    const statusEnumDef = schema.enums.find((e: { name: string }) => e.name === "status");
+    expect(statusEnumDef).toBeDefined();
+    expect(statusEnumDef.values).toEqual(["active", "inactive"]);
+
+    const roleEnumDef = schema.enums.find((e: { name: string }) => e.name === "role");
+    expect(roleEnumDef).toBeDefined();
+    expect(roleEnumDef.values).toEqual(["admin", "user", "guest"]);
+  });
+});
+
+describe("PgGenerator.toIntermediateSchema with relations", () => {
+  const RELATIONS_TEST_DIR = join(import.meta.dirname, "__test_fixtures_intermediate__");
+
+  beforeAll(() => {
+    mkdirSync(RELATIONS_TEST_DIR, { recursive: true });
+  });
+
+  afterAll(() => {
+    rmSync(RELATIONS_TEST_DIR, { recursive: true, force: true });
+  });
+
+  it("should convert relations to intermediate schema format", () => {
+    const schemaCode = `
+import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: text("name"),
+});
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  title: text("title"),
+  authorId: integer("author_id").notNull(),
+});
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+}));
+`;
+    const filePath = join(RELATIONS_TEST_DIR, "schema-relations.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const posts = pgTable("posts", {
+      id: serial("id").primaryKey(),
+      title: text("title"),
+      authorId: integer("author_id").notNull(),
+    });
+
+    const postsRelations = relations(posts, ({ one }) => ({
+      author: one(users, {
+        fields: [posts.authorId],
+        references: [users.id],
+      }),
+    }));
+
+    const generator = new PgGenerator({
+      schema: { users, posts, postsRelations },
+      relational: true,
+      source: filePath,
+    });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.relations).toHaveLength(1);
+    expect(schema.relations[0].fromTable).toBe("posts");
+    expect(schema.relations[0].fromColumns).toEqual(["author_id"]);
+    expect(schema.relations[0].toTable).toBe("users");
+    expect(schema.relations[0].toColumns).toEqual(["id"]);
+    expect(schema.relations[0].type).toBe("many-to-one");
+  });
+
+  it("should detect one-to-one relations in intermediate schema", () => {
+    const schemaCode = `
+import { pgTable, serial, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id"),
+});
+
+export const profiles = pgTable("profiles", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"),
+});
+
+export const usersRelations = relations(users, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [users.profileId],
+    references: [profiles.id],
+  }),
+}));
+
+export const profilesRelations = relations(profiles, ({ one }) => ({
+  user: one(users, {
+    fields: [profiles.id],
+    references: [users.profileId],
+  }),
+}));
+`;
+    const filePath = join(RELATIONS_TEST_DIR, "schema-one-to-one.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      profileId: integer("profile_id"),
+    });
+
+    const profiles = pgTable("profiles", {
+      id: serial("id").primaryKey(),
+      userId: integer("user_id"),
+    });
+
+    const usersRelations = relations(users, ({ one }) => ({
+      profile: one(profiles, {
+        fields: [users.profileId],
+        references: [profiles.id],
+      }),
+    }));
+
+    const profilesRelations = relations(profiles, ({ one }) => ({
+      user: one(users, {
+        fields: [profiles.id],
+        references: [users.profileId],
+      }),
+    }));
+
+    const generator = new PgGenerator({
+      schema: { users, profiles, usersRelations, profilesRelations },
+      relational: true,
+      source: filePath,
+    });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.relations).toHaveLength(1);
+    expect(schema.relations[0].type).toBe("one-to-one");
+  });
+
+  it("should work with RQBv2 defineRelations in intermediate schema", async () => {
+    const { defineRelations } = await import("drizzle-orm");
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const posts = pgTable("posts", {
+      id: serial("id").primaryKey(),
+      title: text("title"),
+      authorId: integer("author_id").notNull(),
+    });
+
+    const tableSchema = { users, posts };
+
+    const rqbv2Relations = defineRelations(tableSchema, (r) => ({
+      users: {
+        posts: r.many.posts(),
+      },
+      posts: {
+        author: r.one.users({
+          from: r.posts.authorId,
+          to: r.users.id,
+        }),
+      },
+    }));
+
+    const generator = new PgGenerator({
+      schema: {
+        users,
+        posts,
+        usersRelEntry: rqbv2Relations.users,
+        postsRelEntry: rqbv2Relations.posts,
+      },
+      relational: true,
+    });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.tables).toHaveLength(2);
+    expect(schema.relations).toHaveLength(1);
+    expect(schema.relations[0].fromTable).toBe("posts");
+    expect(schema.relations[0].toTable).toBe("users");
+    expect(schema.relations[0].type).toBe("many-to-one");
   });
 });
