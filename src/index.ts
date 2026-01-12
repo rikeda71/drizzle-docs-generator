@@ -42,9 +42,10 @@ export type {
 } from "./types";
 
 // Output Formatters
-export { DbmlFormatter, MarkdownFormatter } from "./formatter/index";
+export { DbmlFormatter, MarkdownFormatter, MermaidErDiagramFormatter } from "./formatter/index";
 export type {
   OutputFormatter,
   FormatterOptions,
   MarkdownFormatterOptions,
+  MermaidFormatterOptions,
 } from "./formatter/index";
