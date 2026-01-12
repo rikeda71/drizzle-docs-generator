@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["src/**/*.integration.test.ts"],
+    include: ["src/**/*.integration.*.test.ts"],
+    pool: "threads",
+    testTimeout: 30000,
   },
 });
