@@ -22,7 +22,19 @@ import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/m
 import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import type { GeneratedRef, GenerateOptions } from "../types";
+import type {
+  GeneratedRef,
+  GenerateOptions,
+  IntermediateSchema,
+  TableDefinition,
+  ColumnDefinition,
+  IndexDefinition,
+  ConstraintDefinition,
+  RelationDefinition,
+  EnumDefinition,
+  DatabaseType,
+  IntermediateRelationType,
+} from "../types";
 import { extractComments, type SchemaComments } from "../parser/comments";
 import { extractRelations, type SchemaRelations } from "../parser/relations";
 
@@ -1132,6 +1144,426 @@ export abstract class BaseGenerator<
     } catch {
       return [];
     }
+  }
+
+  // =============================================================================
+  // Intermediate Schema Generation
+  // =============================================================================
+
+  /**
+   * Convert the Drizzle schema to an intermediate schema representation
+   *
+   * Creates a database-agnostic intermediate representation that can be
+   * used to generate various output formats (DBML, Markdown, JSON, etc.)
+   *
+   * @returns The intermediate schema representation
+   */
+  toIntermediateSchema(): IntermediateSchema {
+    const tables = this.getTables();
+    const v0Relations = this.getV0Relations();
+    const v1Entries = this.getV1RelationEntries();
+
+    // Determine database type from the first table
+    const databaseType = this.getDatabaseType(tables[0]);
+
+    // Convert tables to intermediate format
+    const tableDefinitions: TableDefinition[] = tables.map((table) =>
+      this.tableToDefinition(table),
+    );
+
+    // Collect relations
+    // Reset generatedRefs to collect fresh relations
+    this.generatedRefs = [];
+
+    if (this.relational) {
+      if (v1Entries.length > 0) {
+        this.generateRelationalRefsFromV1(v1Entries);
+      } else if (v0Relations.length > 0 || this.parsedRelations) {
+        this.generateRelationalRefsFromV0();
+      }
+    } else {
+      // Collect foreign keys from table configs
+      for (const table of tables) {
+        const tableName = getTableName(table);
+        const tableConfig = this.getTableConfig(table);
+        if (tableConfig && tableConfig.foreignKeys.length > 0) {
+          this.collectForeignKeysFromConfig(tableName, tableConfig.foreignKeys);
+        }
+      }
+    }
+
+    // Convert GeneratedRefs to RelationDefinitions
+    const relations: RelationDefinition[] = this.generatedRefs.map((ref) =>
+      this.refToRelationDefinition(ref),
+    );
+
+    // Collect enums (override in subclasses for dialect-specific behavior)
+    const enums: EnumDefinition[] = this.collectEnumDefinitions();
+
+    return {
+      databaseType,
+      tables: tableDefinitions,
+      relations,
+      enums,
+    };
+  }
+
+  /**
+   * Determine the database type from a Drizzle table
+   *
+   * @param table - The table to check (can be undefined for empty schemas)
+   * @returns The database type
+   */
+  protected getDatabaseType(table: Table | undefined): DatabaseType {
+    if (!table) {
+      // Default to postgresql if no tables
+      return "postgresql";
+    }
+    if (is(table, PgTable)) {
+      return "postgresql";
+    }
+    if (is(table, MySqlTable)) {
+      return "mysql";
+    }
+    if (is(table, SQLiteTable)) {
+      return "sqlite";
+    }
+    // Fallback
+    return "postgresql";
+  }
+
+  /**
+   * Convert a Drizzle table to a TableDefinition
+   *
+   * @param table - The Drizzle table to convert
+   * @returns The table definition
+   */
+  protected tableToDefinition(table: Table): TableDefinition {
+    const tableName = getTableName(table);
+    const columns = getTableColumns(table);
+    const tableConfig = this.getTableConfig(table);
+
+    // Convert columns
+    const columnDefinitions: ColumnDefinition[] = Object.values(columns).map((column) =>
+      this.columnToDefinition(column, tableName),
+    );
+
+    // Convert indexes
+    const indexDefinitions: IndexDefinition[] = this.extractIndexDefinitions(tableConfig);
+
+    // Convert constraints
+    const constraintDefinitions: ConstraintDefinition[] =
+      this.extractConstraintDefinitions(tableConfig);
+
+    // Get table comment
+    const tableComment = this.comments?.tables[tableName]?.comment;
+
+    return {
+      name: tableName,
+      comment: tableComment,
+      columns: columnDefinitions,
+      indexes: indexDefinitions,
+      constraints: constraintDefinitions,
+    };
+  }
+
+  /**
+   * Convert a Drizzle column to a ColumnDefinition
+   *
+   * @param column - The Drizzle column to convert
+   * @param tableName - The name of the table containing the column
+   * @returns The column definition
+   */
+  protected columnToDefinition(column: AnyColumn, tableName: string): ColumnDefinition {
+    const columnComment = this.comments?.tables[tableName]?.columns[column.name]?.comment;
+    const defaultValue = this.getDefaultValueForIntermediate(column);
+
+    return {
+      name: column.name,
+      type: column.getSQLType(),
+      nullable: !column.notNull,
+      defaultValue,
+      primaryKey: column.primary,
+      unique: column.isUnique,
+      autoIncrement: this.dialectConfig.isIncrement(column) || undefined,
+      comment: columnComment,
+    };
+  }
+
+  /**
+   * Get the default value for intermediate schema format
+   *
+   * Similar to getDefaultValue but returns raw string without DBML formatting
+   *
+   * @param column - The column to get the default value from
+   * @returns Default value string or undefined
+   */
+  protected getDefaultValueForIntermediate(column: AnyColumn): string | undefined {
+    if (!column.hasDefault) {
+      return undefined;
+    }
+
+    const defaultValue = column.default;
+
+    if (defaultValue === null) {
+      return "null";
+    }
+
+    if (defaultValue === undefined) {
+      return undefined;
+    }
+
+    // Handle SQL expressions
+    if (typeof defaultValue === "object" && defaultValue !== null) {
+      if ("queryChunks" in defaultValue) {
+        const chunks = (defaultValue as { queryChunks: unknown[] }).queryChunks;
+        const sqlParts: string[] = [];
+        for (const chunk of chunks) {
+          if (typeof chunk === "string") {
+            sqlParts.push(chunk);
+          } else if (typeof chunk === "object" && chunk !== null && "value" in chunk) {
+            sqlParts.push(String((chunk as { value: unknown }).value));
+          }
+        }
+        return sqlParts.join("");
+      }
+      if ("sql" in defaultValue) {
+        return (defaultValue as { sql: string }).sql;
+      }
+      // JSON object
+      return JSON.stringify(defaultValue);
+    }
+
+    // Handle primitives
+    if (typeof defaultValue === "string") {
+      return `'${defaultValue.replace(/'/g, "''")}'`;
+    }
+    if (typeof defaultValue === "number" || typeof defaultValue === "boolean") {
+      return String(defaultValue);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Extract index definitions from table config
+   *
+   * @param tableConfig - The table configuration
+   * @returns Array of index definitions
+   */
+  protected extractIndexDefinitions(tableConfig: TableConfig | undefined): IndexDefinition[] {
+    if (!tableConfig) {
+      return [];
+    }
+
+    const indexes: IndexDefinition[] = [];
+
+    for (const idx of tableConfig.indexes) {
+      const columns = this.getIndexColumns(idx);
+      if (columns.length > 0) {
+        const indexName = this.getIndexName(idx);
+        indexes.push({
+          name: indexName || `idx_${columns.join("_")}`,
+          columns,
+          unique: this.isUniqueIndex(idx),
+          type: this.getIndexType(idx),
+        });
+      }
+    }
+
+    return indexes;
+  }
+
+  /**
+   * Get the name of an index
+   *
+   * @param idx - The index definition
+   * @returns The index name or undefined
+   */
+  protected getIndexName(idx: unknown): string | undefined {
+    try {
+      const config = (idx as { config: { name?: string } }).config;
+      return config.name;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Get the type of an index (e.g., btree, hash)
+   *
+   * @param idx - The index definition
+   * @returns The index type or undefined
+   */
+  protected getIndexType(idx: unknown): string | undefined {
+    try {
+      const config = (idx as { config: { using?: string } }).config;
+      return config.using;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Extract constraint definitions from table config
+   *
+   * @param tableConfig - The table configuration
+   * @returns Array of constraint definitions
+   */
+  protected extractConstraintDefinitions(
+    tableConfig: TableConfig | undefined,
+  ): ConstraintDefinition[] {
+    if (!tableConfig) {
+      return [];
+    }
+
+    const constraints: ConstraintDefinition[] = [];
+
+    // Primary keys
+    for (const pk of tableConfig.primaryKeys) {
+      const columns = this.getPrimaryKeyColumns(pk);
+      if (columns.length > 0) {
+        const pkName = this.getPrimaryKeyName(pk);
+        constraints.push({
+          name: pkName || `pk_${columns.join("_")}`,
+          type: "primary_key",
+          columns,
+        });
+      }
+    }
+
+    // Unique constraints
+    for (const uc of tableConfig.uniqueConstraints) {
+      const columns = this.getUniqueConstraintColumns(uc);
+      if (columns.length > 0) {
+        const ucName = this.getUniqueConstraintName(uc);
+        constraints.push({
+          name: ucName || `uq_${columns.join("_")}`,
+          type: "unique",
+          columns,
+        });
+      }
+    }
+
+    // Foreign keys
+    for (const fk of tableConfig.foreignKeys) {
+      const fkDef = this.parseForeignKeyForConstraint(fk);
+      if (fkDef) {
+        constraints.push(fkDef);
+      }
+    }
+
+    return constraints;
+  }
+
+  /**
+   * Get the name of a primary key constraint
+   *
+   * @param pk - The primary key definition
+   * @returns The constraint name or undefined
+   */
+  protected getPrimaryKeyName(pk: unknown): string | undefined {
+    try {
+      const pkObj = pk as { name?: string };
+      return pkObj.name;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Get the name of a unique constraint
+   *
+   * @param uc - The unique constraint definition
+   * @returns The constraint name or undefined
+   */
+  protected getUniqueConstraintName(uc: unknown): string | undefined {
+    try {
+      const ucObj = uc as { name?: string };
+      return ucObj.name;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Parse a foreign key into a ConstraintDefinition
+   *
+   * @param fk - The foreign key definition
+   * @returns ConstraintDefinition or undefined
+   */
+  protected parseForeignKeyForConstraint(fk: unknown): ConstraintDefinition | undefined {
+    try {
+      const fkObj = fk as {
+        reference: () => {
+          columns: Array<{ name: string }>;
+          foreignColumns: Array<{ name: string }>;
+          foreignTable: Table;
+        };
+        name?: string;
+      };
+      const reference = fkObj.reference();
+      const columns = reference.columns.map((c) => c.name);
+      const referencedColumns = reference.foreignColumns.map((c) => c.name);
+      const referencedTable = getTableName(reference.foreignTable);
+
+      return {
+        name: fkObj.name || `fk_${columns.join("_")}_${referencedTable}`,
+        type: "foreign_key",
+        columns,
+        referencedTable,
+        referencedColumns,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Convert a GeneratedRef to a RelationDefinition
+   *
+   * @param ref - The generated reference
+   * @returns The relation definition
+   */
+  protected refToRelationDefinition(ref: GeneratedRef): RelationDefinition {
+    // Map DBML ref type to IntermediateRelationType
+    let relationType: IntermediateRelationType;
+    switch (ref.type) {
+      case "-":
+        relationType = "one-to-one";
+        break;
+      case ">":
+        relationType = "many-to-one";
+        break;
+      case "<":
+        relationType = "one-to-many";
+        break;
+      default:
+        relationType = "many-to-one";
+    }
+
+    return {
+      fromTable: ref.fromTable,
+      fromColumns: ref.fromColumns,
+      toTable: ref.toTable,
+      toColumns: ref.toColumns,
+      type: relationType,
+      onDelete: ref.onDelete,
+      onUpdate: ref.onUpdate,
+    };
+  }
+
+  /**
+   * Collect enum definitions from the schema
+   *
+   * Override in subclasses for dialect-specific enum handling (e.g., PostgreSQL)
+   *
+   * @returns Array of enum definitions (empty by default)
+   */
+  protected collectEnumDefinitions(): EnumDefinition[] {
+    // Default implementation returns empty array
+    // Override in PgGenerator for PostgreSQL enum support
+    return [];
   }
 }
 
