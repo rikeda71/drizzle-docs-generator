@@ -12,8 +12,6 @@ export interface GenerateOptions<TSchema extends Record<string, unknown>> {
   schema: TSchema;
   /** Output file path. If provided, DBML will be written to this file */
   out?: string;
-  /** If true, uses relations() definitions instead of foreign keys for references */
-  relational?: boolean;
   /**
    * Path to the source schema file or directory for extracting JSDoc comments and relations.
    * If a directory is provided, all .ts files will be processed recursively.

@@ -100,7 +100,6 @@ export abstract class BaseGenerator<
   TSchema extends Record<string, unknown> = Record<string, unknown>,
 > {
   protected schema: TSchema;
-  protected relational: boolean;
   protected generatedRefs: GeneratedRef[] = [];
   protected comments: SchemaComments | undefined;
   protected parsedRelations: SchemaRelations | undefined;
@@ -109,11 +108,10 @@ export abstract class BaseGenerator<
 
   /**
    * Create a new generator instance
-   * @param options - Configuration options including schema, relational mode, source code, and comments
+   * @param options - Configuration options including schema, source code, and comments
    */
   constructor(options: GenerateOptions<TSchema>) {
     this.schema = options.schema;
-    this.relational = options.relational ?? false;
     this.source = options.source;
 
     // Initialize comments from options
@@ -123,8 +121,8 @@ export abstract class BaseGenerator<
       this.comments = extractComments(this.source);
     }
 
-    // Extract relations from source if relational mode is enabled
-    if (this.relational && this.source) {
+    // Extract relations from source for v0 API detection
+    if (this.source) {
       this.parsedRelations = extractRelations(this.source);
     }
   }
@@ -449,6 +447,29 @@ export abstract class BaseGenerator<
   }
 
   /**
+   * Detect if relation definitions are present in the schema
+   *
+   * Checks for both v1 (defineRelations()) and v0 (relations()) API usage.
+   * Returns true if any relation definitions are found.
+   *
+   * @returns True if relations are defined, false otherwise
+   */
+  private hasRelationDefinitions(): boolean {
+    // Check for v1 relation entries (defineRelations() API)
+    const v1Entries = this.getV1RelationEntries();
+    if (v1Entries.length > 0) {
+      return true;
+    }
+
+    // Check for v0 relation definitions (relations() API)
+    if (this.parsedRelations && this.parsedRelations.relations.length > 0) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Create the appropriate relation adapter based on schema contents
    *
    * Detects whether v1 or v0 relations are present and returns the
@@ -504,16 +525,16 @@ export abstract class BaseGenerator<
       this.tableToDefinition(table),
     );
 
-    // Collect relations
+    // Collect relations (auto-detect relation definitions vs foreign keys)
     let relations: RelationDefinition[] = [];
 
-    if (this.relational) {
-      // Use adapter to extract relations in unified format
+    if (this.hasRelationDefinitions()) {
+      // Use adapter to extract relations in unified format (v1 or v0 API)
       const adapter = this.createRelationAdapter();
       const unifiedRelations = adapter.extract();
       relations = unifiedRelations.map((unified) => this.unifiedRelationToDefinition(unified));
     } else {
-      // Collect foreign keys from table configs (legacy path)
+      // Fall back to foreign keys from table configs
       // Reset generatedRefs to collect fresh relations
       this.generatedRefs = [];
       for (const table of tables) {

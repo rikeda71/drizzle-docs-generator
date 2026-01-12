@@ -28,8 +28,8 @@ import {
 setupIntegrationTest();
 
 describe("PostgreSQL v0 (relations())", () => {
-  it("should generate DBML and relations with -r flag", async () => {
-    const result = await runGenerate(PG_SCHEMA_V0, "postgresql", { relational: true });
+  it("should auto-detect relations() and generate DBML with relations", async () => {
+    const result = await runGenerate(PG_SCHEMA_V0, "postgresql");
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -90,8 +90,8 @@ describe("PostgreSQL v1 (defineRelations())", () => {
     expect(hasTableNote(result.stdout, "posts", "Blog posts", '"')).toBe(true);
   });
 
-  it("should generate relations with -r flag using defineRelations", async () => {
-    const result = await runGenerate(PG_SCHEMA_V1, "postgresql", { relational: true });
+  it("should auto-detect defineRelations() and generate relations", async () => {
+    const result = await runGenerate(PG_SCHEMA_V1, "postgresql");
 
     expect(result.exitCode).toBe(0);
     expect(countRefs(result.stdout)).toBeGreaterThan(0);

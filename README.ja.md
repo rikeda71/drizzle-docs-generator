@@ -65,11 +65,19 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --no-er-diagr
 | `-o, --output <path>`     | 出力ファイルまたはディレクトリパス                    |
 | `-d, --dialect <dialect>` | DB 種別: `postgresql` (デフォルト), `mysql`, `sqlite` |
 | `-f, --format <format>`   | 出力形式: `dbml` (デフォルト), `markdown`             |
-| `-r, --relational`        | relations() 定義からリファレンスを生成                |
 | `-w, --watch`             | ファイル変更時に自動再生成                            |
 | `--single-file`           | Markdown を単一ファイルで出力 (markdown のみ)         |
 | `--no-er-diagram`         | ER 図を Markdown 出力から除外                         |
 | `--force`                 | 確認なしで既存ファイルを上書き                        |
+
+### リレーション検出
+
+リレーションはスキーマから**自動検出**されます：
+
+- **v1 API** (`defineRelations()`): スキーマオブジェクトから実行時に検出
+- **v0 API** (`relations()`): ソースファイルを解析して検出
+
+設定不要 - リレーション定義があれば使用し、なければ外部キー制約にフォールバックします。
 
 ## 例
 
@@ -119,8 +127,7 @@ import * as schema from "./schema";
 
 const dbml = pgGenerate({
   schema,
-  source: "./schema.ts",
-  relational: false,
+  source: "./schema.ts", // JSDoc コメントと v0 relations() 検出用
   out: "./output.dbml", // optional
 });
 ```

@@ -31,6 +31,6 @@ Blog posts created by users
 
 | Parent | Child | Type |
 |--------|-------|------|
+| [users.id](./users.md) | **[posts.author_id](./posts.md)** | Many to One |
 | **[posts.id](./posts.md)** | [comments.post_id](./comments.md) | Many to One |
 | **[posts.id](./posts.md)** | [post_tags.post_id](./post_tags.md) | Many to One |
-| [users.id](./users.md) | **[posts.author_id](./posts.md)** | Many to One |
