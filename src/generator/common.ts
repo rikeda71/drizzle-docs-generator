@@ -49,14 +49,55 @@ export interface DialectConfig {
 }
 
 /**
+ * Configuration for an index definition
+ */
+export interface IndexConfig {
+  config: {
+    columns: Array<{ name: string }>;
+    name?: string;
+    unique?: boolean;
+    using?: string;
+  };
+}
+
+/**
+ * Configuration for a primary key constraint
+ */
+export interface PrimaryKeyConfig {
+  columns: Array<{ name: string }>;
+  name?: string;
+}
+
+/**
+ * Configuration for a unique constraint
+ */
+export interface UniqueConstraintConfig {
+  columns: Array<{ name: string }>;
+  name?: string;
+}
+
+/**
+ * Configuration for a foreign key constraint
+ */
+export interface ForeignKeyConfig {
+  reference: () => {
+    columns: Array<{ name: string }>;
+    foreignColumns: Array<{ name: string }>;
+    foreignTable: Table;
+  };
+  name?: string;
+  onDelete?: string;
+  onUpdate?: string;
+}
+
+/**
  * Table configuration extracted from Drizzle tables
- * Using 'any' types for dialect-agnostic handling
  */
 export interface TableConfig {
-  indexes: unknown[];
-  primaryKeys: unknown[];
-  uniqueConstraints: unknown[];
-  foreignKeys: unknown[];
+  indexes: IndexConfig[];
+  primaryKeys: PrimaryKeyConfig[];
+  uniqueConstraints: UniqueConstraintConfig[];
+  foreignKeys: ForeignKeyConfig[];
 }
 
 // Use official v1 types from drizzle-orm/relations:
@@ -271,37 +312,40 @@ export abstract class BaseGenerator<
    *
    * Extracts indexes, primary keys, unique constraints, and foreign keys
    * from the table using the appropriate dialect-specific config getter.
+   * Type casts are applied at this boundary to convert Drizzle's internal types
+   * to our typed interfaces.
    *
    * @param table - The Drizzle table to get configuration from
    * @returns Table configuration or undefined if dialect is not supported
    */
   protected getTableConfig(table: Table): TableConfig | undefined {
     // Detect dialect and use appropriate config getter
+    // Type casts at the boundary from Drizzle internal types to our interfaces
     if (is(table, PgTable)) {
       const config = getPgTableConfig(table);
       return {
-        indexes: config.indexes || [],
-        primaryKeys: config.primaryKeys || [],
-        uniqueConstraints: config.uniqueConstraints || [],
-        foreignKeys: config.foreignKeys || [],
+        indexes: (config.indexes || []) as unknown as IndexConfig[],
+        primaryKeys: (config.primaryKeys || []) as unknown as PrimaryKeyConfig[],
+        uniqueConstraints: (config.uniqueConstraints || []) as unknown as UniqueConstraintConfig[],
+        foreignKeys: (config.foreignKeys || []) as unknown as ForeignKeyConfig[],
       };
     }
     if (is(table, MySqlTable)) {
       const config = getMySqlTableConfig(table);
       return {
-        indexes: config.indexes || [],
-        primaryKeys: config.primaryKeys || [],
-        uniqueConstraints: config.uniqueConstraints || [],
-        foreignKeys: config.foreignKeys || [],
+        indexes: (config.indexes || []) as unknown as IndexConfig[],
+        primaryKeys: (config.primaryKeys || []) as unknown as PrimaryKeyConfig[],
+        uniqueConstraints: (config.uniqueConstraints || []) as unknown as UniqueConstraintConfig[],
+        foreignKeys: (config.foreignKeys || []) as unknown as ForeignKeyConfig[],
       };
     }
     if (is(table, SQLiteTable)) {
       const config = getSqliteTableConfig(table);
       return {
-        indexes: config.indexes || [],
-        primaryKeys: config.primaryKeys || [],
-        uniqueConstraints: config.uniqueConstraints || [],
-        foreignKeys: config.foreignKeys || [],
+        indexes: (config.indexes || []) as unknown as IndexConfig[],
+        primaryKeys: (config.primaryKeys || []) as unknown as PrimaryKeyConfig[],
+        uniqueConstraints: (config.uniqueConstraints || []) as unknown as UniqueConstraintConfig[],
+        foreignKeys: (config.foreignKeys || []) as unknown as ForeignKeyConfig[],
       };
     }
     return undefined;
@@ -375,12 +419,10 @@ export abstract class BaseGenerator<
    * @param tableName - The name of the source table
    * @param foreignKeys - Array of foreign key definitions from table config
    */
-  protected collectForeignKeysFromConfig(tableName: string, foreignKeys: unknown[]): void {
+  protected collectForeignKeysFromConfig(tableName: string, foreignKeys: ForeignKeyConfig[]): void {
     for (const fk of foreignKeys) {
       const ref = this.parseForeignKey(tableName, fk);
-      if (ref) {
-        this.generatedRefs.push(ref);
-      }
+      this.generatedRefs.push(ref);
     }
   }
 
@@ -392,36 +434,23 @@ export abstract class BaseGenerator<
    *
    * @param tableName - The name of the source table
    * @param fk - The foreign key definition to parse
-   * @returns GeneratedRef object or undefined if parsing fails
+   * @returns GeneratedRef object
    */
-  protected parseForeignKey(tableName: string, fk: unknown): GeneratedRef | undefined {
-    try {
-      const fkObj = fk as {
-        reference: () => {
-          columns: Array<{ name: string }>;
-          foreignColumns: Array<{ name: string }>;
-          foreignTable: Table;
-        };
-        onDelete?: string;
-        onUpdate?: string;
-      };
-      const reference = fkObj.reference();
-      const fromColumns = reference.columns.map((c) => c.name);
-      const toColumns = reference.foreignColumns.map((c) => c.name);
-      const toTable = getTableName(reference.foreignTable);
+  protected parseForeignKey(tableName: string, fk: ForeignKeyConfig): GeneratedRef {
+    const reference = fk.reference();
+    const fromColumns = reference.columns.map((c) => c.name);
+    const toColumns = reference.foreignColumns.map((c) => c.name);
+    const toTable = getTableName(reference.foreignTable);
 
-      return {
-        fromTable: tableName,
-        fromColumns,
-        toTable,
-        toColumns,
-        type: ">",
-        onDelete: fkObj.onDelete,
-        onUpdate: fkObj.onUpdate,
-      };
-    } catch {
-      return undefined;
-    }
+    return {
+      fromTable: tableName,
+      fromColumns,
+      toTable,
+      toColumns,
+      type: ">",
+      onDelete: fk.onDelete,
+      onUpdate: fk.onUpdate,
+    };
   }
 
   /**
@@ -509,20 +538,8 @@ export abstract class BaseGenerator<
    * @param idx - The index definition to extract columns from
    * @returns Array of column names in the index
    */
-  protected getIndexColumns(idx: unknown): string[] {
-    try {
-      const config = (idx as { config: { columns: Array<{ name?: string }> } }).config;
-      return config.columns
-        .map((c) => {
-          if (typeof c === "object" && c !== null && "name" in c) {
-            return c.name as string;
-          }
-          return "";
-        })
-        .filter(Boolean);
-    } catch {
-      return [];
-    }
+  protected getIndexColumns(idx: IndexConfig): string[] {
+    return idx.config.columns.map((c) => c.name);
   }
 
   /**
@@ -531,13 +548,8 @@ export abstract class BaseGenerator<
    * @param idx - The index definition to check
    * @returns True if the index has the unique flag
    */
-  protected isUniqueIndex(idx: unknown): boolean {
-    try {
-      const config = (idx as { config: { unique?: boolean } }).config;
-      return config.unique === true;
-    } catch {
-      return false;
-    }
+  protected isUniqueIndex(idx: IndexConfig): boolean {
+    return idx.config.unique === true;
   }
 
   /**
@@ -546,13 +558,8 @@ export abstract class BaseGenerator<
    * @param pk - The primary key definition to extract columns from
    * @returns Array of column names in the primary key
    */
-  protected getPrimaryKeyColumns(pk: unknown): string[] {
-    try {
-      const columns = (pk as { columns: Array<{ name: string }> }).columns;
-      return columns.map((c) => c.name);
-    } catch {
-      return [];
-    }
+  protected getPrimaryKeyColumns(pk: PrimaryKeyConfig): string[] {
+    return pk.columns.map((c) => c.name);
   }
 
   /**
@@ -561,13 +568,8 @@ export abstract class BaseGenerator<
    * @param uc - The unique constraint definition to extract columns from
    * @returns Array of column names in the unique constraint
    */
-  protected getUniqueConstraintColumns(uc: unknown): string[] {
-    try {
-      const columns = (uc as { columns: Array<{ name: string }> }).columns;
-      return columns.map((c) => c.name);
-    } catch {
-      return [];
-    }
+  protected getUniqueConstraintColumns(uc: UniqueConstraintConfig): string[] {
+    return uc.columns.map((c) => c.name);
   }
 
   // =============================================================================
@@ -744,13 +746,8 @@ export abstract class BaseGenerator<
    * @param idx - The index definition
    * @returns The index name or undefined
    */
-  protected getIndexName(idx: unknown): string | undefined {
-    try {
-      const config = (idx as { config: { name?: string } }).config;
-      return config.name;
-    } catch {
-      return undefined;
-    }
+  protected getIndexName(idx: IndexConfig): string | undefined {
+    return idx.config.name;
   }
 
   /**
@@ -759,13 +756,8 @@ export abstract class BaseGenerator<
    * @param idx - The index definition
    * @returns The index type or undefined
    */
-  protected getIndexType(idx: unknown): string | undefined {
-    try {
-      const config = (idx as { config: { using?: string } }).config;
-      return config.using;
-    } catch {
-      return undefined;
-    }
+  protected getIndexType(idx: IndexConfig): string | undefined {
+    return idx.config.using;
   }
 
   /**
@@ -826,13 +818,8 @@ export abstract class BaseGenerator<
    * @param pk - The primary key definition
    * @returns The constraint name or undefined
    */
-  protected getPrimaryKeyName(pk: unknown): string | undefined {
-    try {
-      const pkObj = pk as { name?: string };
-      return pkObj.name;
-    } catch {
-      return undefined;
-    }
+  protected getPrimaryKeyName(pk: PrimaryKeyConfig): string | undefined {
+    return pk.name;
   }
 
   /**
@@ -841,46 +828,29 @@ export abstract class BaseGenerator<
    * @param uc - The unique constraint definition
    * @returns The constraint name or undefined
    */
-  protected getUniqueConstraintName(uc: unknown): string | undefined {
-    try {
-      const ucObj = uc as { name?: string };
-      return ucObj.name;
-    } catch {
-      return undefined;
-    }
+  protected getUniqueConstraintName(uc: UniqueConstraintConfig): string | undefined {
+    return uc.name;
   }
 
   /**
    * Parse a foreign key into a ConstraintDefinition
    *
    * @param fk - The foreign key definition
-   * @returns ConstraintDefinition or undefined
+   * @returns ConstraintDefinition
    */
-  protected parseForeignKeyForConstraint(fk: unknown): ConstraintDefinition | undefined {
-    try {
-      const fkObj = fk as {
-        reference: () => {
-          columns: Array<{ name: string }>;
-          foreignColumns: Array<{ name: string }>;
-          foreignTable: Table;
-        };
-        name?: string;
-      };
-      const reference = fkObj.reference();
-      const columns = reference.columns.map((c) => c.name);
-      const referencedColumns = reference.foreignColumns.map((c) => c.name);
-      const referencedTable = getTableName(reference.foreignTable);
+  protected parseForeignKeyForConstraint(fk: ForeignKeyConfig): ConstraintDefinition {
+    const reference = fk.reference();
+    const columns = reference.columns.map((c) => c.name);
+    const referencedColumns = reference.foreignColumns.map((c) => c.name);
+    const referencedTable = getTableName(reference.foreignTable);
 
-      return {
-        name: fkObj.name || `fk_${columns.join("_")}_${referencedTable}`,
-        type: "foreign_key",
-        columns,
-        referencedTable,
-        referencedColumns,
-      };
-    } catch {
-      return undefined;
-    }
+    return {
+      name: fk.name || `fk_${columns.join("_")}_${referencedTable}`,
+      type: "foreign_key",
+      columns,
+      referencedTable,
+      referencedColumns,
+    };
   }
 
   /**
