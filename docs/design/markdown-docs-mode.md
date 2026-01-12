@@ -80,22 +80,22 @@ interface OutputFormatter {
 class MarkdownFormatter implements OutputFormatter {
   format(schema: IntermediateSchema): FileOutput[] {
     return [
-      { path: 'README.md', content: this.generateIndex(schema) },
-      ...schema.tables.map(t => ({
+      { path: "README.md", content: this.generateIndex(schema) },
+      ...schema.tables.map((t) => ({
         path: `${t.name}.md`,
-        content: this.generateTableDoc(t)
-      }))
+        content: this.generateTableDoc(t),
+      })),
     ];
   }
 }
 ```
 
-| メリット | デメリット |
-|---------|-----------|
-| 既存コードへの影響が最小 | 中間表現の設計が必要 |
-| 新しい出力形式の追加が容易 | 一時的にコード量が増加 |
-| テストが書きやすい | Generator と Formatter の責務分離が必要 |
-| 関心の分離が明確 | |
+| メリット                   | デメリット                              |
+| -------------------------- | --------------------------------------- |
+| 既存コードへの影響が最小   | 中間表現の設計が必要                    |
+| 新しい出力形式の追加が容易 | 一時的にコード量が増加                  |
+| テストが書きやすい         | Generator と Formatter の責務分離が必要 |
+| 関心の分離が明確           |                                         |
 
 ---
 
@@ -120,12 +120,12 @@ DB 方言ごとの Generator（`PgGenerator`, `MySqlGenerator`）と同様に、
                                   └──────────────┘
 ```
 
-| メリット | デメリット |
-|---------|-----------|
+| メリット               | デメリット                                 |
+| ---------------------- | ------------------------------------------ |
 | 既存パターンとの一貫性 | クラス数が爆発（3 DB × 2 形式 = 6 クラス） |
-| 理解しやすい | コードの重複が発生 |
-| | DB 追加時に Markdown 版も作成が必要 |
-| | 保守コストが高い |
+| 理解しやすい           | コードの重複が発生                         |
+|                        | DB 追加時に Markdown 版も作成が必要        |
+|                        | 保守コストが高い                           |
 
 ---
 
@@ -144,11 +144,11 @@ class DbmlBuilder implements DocumentBuilder { ... }
 class MarkdownBuilder implements DocumentBuilder { ... }
 ```
 
-| メリット | デメリット |
-|---------|-----------|
+| メリット         | デメリット                            |
+| ---------------- | ------------------------------------- |
 | 変更箇所が限定的 | DBML と Markdown の構造が異なりすぎる |
-| | 無理な抽象化になりがち |
-| | 複数ファイル出力に対応しにくい |
+|                  | 無理な抽象化になりがち                |
+|                  | 複数ファイル出力に対応しにくい        |
 
 ---
 
@@ -197,7 +197,7 @@ interface RelationDefinition {
   fromColumns: string[];
   toTable: string;
   toColumns: string[];
-  type: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many';
+  type: "one-to-one" | "one-to-many" | "many-to-one" | "many-to-many";
   onDelete?: string;
   onUpdate?: string;
 }
@@ -208,7 +208,7 @@ interface EnumDefinition {
 }
 
 interface IntermediateSchema {
-  databaseType: 'postgresql' | 'mysql' | 'sqlite';
+  databaseType: "postgresql" | "mysql" | "sqlite";
   tables: TableDefinition[];
   relations: RelationDefinition[];
   enums: EnumDefinition[];
@@ -231,7 +231,7 @@ interface FormatterOptions {
   /** ER図を含めるか */
   includeErDiagram?: boolean;
   /** Mermaid形式（デフォルト）かSVGか */
-  erFormat?: 'mermaid' | 'svg';
+  erFormat?: "mermaid" | "svg";
 }
 
 interface OutputFormatter {
@@ -255,15 +255,15 @@ export class MarkdownFormatter implements OutputFormatter {
 
     // 1. インデックスファイル（README.md）
     files.push({
-      path: 'README.md',
-      content: this.generateIndex(schema)
+      path: "README.md",
+      content: this.generateIndex(schema),
     });
 
     // 2. 各テーブルのドキュメント
     for (const table of schema.tables) {
       files.push({
         path: `${table.name}.md`,
-        content: this.generateTableDoc(table, schema)
+        content: this.generateTableDoc(table, schema),
       });
     }
 
@@ -298,19 +298,19 @@ export class MarkdownFormatter implements OutputFormatter {
 
 ## Tables
 
-| Name | Columns | Comment | Type |
-|------|---------|---------|------|
-| [users](users.md) | 5 | ユーザーテーブル | TABLE |
-| [posts](posts.md) | 6 | 投稿テーブル | TABLE |
-| [comments](comments.md) | 5 | コメントテーブル | TABLE |
+| Name                    | Columns | Comment          | Type  |
+| ----------------------- | ------- | ---------------- | ----- |
+| [users](users.md)       | 5       | ユーザーテーブル | TABLE |
+| [posts](posts.md)       | 6       | 投稿テーブル     | TABLE |
+| [comments](comments.md) | 5       | コメントテーブル | TABLE |
 
 ## ER Diagram
 
 \`\`\`mermaid
 erDiagram
-    users ||--o{ posts : "has many"
-    users ||--o{ comments : "has many"
-    posts ||--o{ comments : "has many"
+users ||--o{ posts : "has many"
+users ||--o{ comments : "has many"
+posts ||--o{ comments : "has many"
 
     users {
         int id PK
@@ -326,6 +326,7 @@ erDiagram
         text content
         timestamp created_at
     }
+
 \`\`\`
 
 ---
@@ -342,42 +343,42 @@ erDiagram
 
 ## Columns
 
-| Name | Type | Nullable | Default | Comment |
-|------|------|----------|---------|---------|
-| id | serial | NO | | ユーザーID |
-| username | varchar(255) | NO | | ユーザー名 |
-| email | varchar(255) | NO | | メールアドレス |
-| created_at | timestamp | NO | now() | 作成日時 |
-| updated_at | timestamp | YES | | 更新日時 |
+| Name       | Type         | Nullable | Default | Comment        |
+| ---------- | ------------ | -------- | ------- | -------------- |
+| id         | serial       | NO       |         | ユーザーID     |
+| username   | varchar(255) | NO       |         | ユーザー名     |
+| email      | varchar(255) | NO       |         | メールアドレス |
+| created_at | timestamp    | NO       | now()   | 作成日時       |
+| updated_at | timestamp    | YES      |         | 更新日時       |
 
 ## Constraints
 
-| Name | Type | Definition |
-|------|------|------------|
-| users_pkey | PRIMARY KEY | PRIMARY KEY (id) |
-| users_email_unique | UNIQUE | UNIQUE (email) |
+| Name               | Type        | Definition       |
+| ------------------ | ----------- | ---------------- |
+| users_pkey         | PRIMARY KEY | PRIMARY KEY (id) |
+| users_email_unique | UNIQUE      | UNIQUE (email)   |
 
 ## Indexes
 
-| Name | Definition |
-|------|------------|
+| Name            | Definition                                    |
+| --------------- | --------------------------------------------- |
 | users_email_idx | CREATE INDEX users_email_idx ON users (email) |
 
 ## Relations
 
 ### Referenced by
 
-| Table | Column | Relation |
-|-------|--------|----------|
-| [posts](posts.md) | user_id | Many-to-One |
+| Table                   | Column  | Relation    |
+| ----------------------- | ------- | ----------- |
+| [posts](posts.md)       | user_id | Many-to-One |
 | [comments](comments.md) | user_id | Many-to-One |
 
 ## ER Diagram
 
 \`\`\`mermaid
 erDiagram
-    users ||--o{ posts : "user_id"
-    users ||--o{ comments : "user_id"
+users ||--o{ posts : "user_id"
+users ||--o{ comments : "user_id"
 
     users {
         int id PK
@@ -386,6 +387,7 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
+
 \`\`\`
 
 ---
@@ -413,11 +415,11 @@ drizzle-docs generate ./schema.ts --format markdown --no-er-diagram -o ./docs
 
 **新しいCLIオプション:**
 
-| オプション | 説明 | デフォルト |
-|-----------|------|-----------|
-| `--format, -f` | 出力形式 (`dbml` \| `markdown`) | `dbml` |
-| `--single-file` | Markdown を単一ファイルに出力 | `false` |
-| `--no-er-diagram` | ER図を含めない | `false` |
+| オプション        | 説明                            | デフォルト |
+| ----------------- | ------------------------------- | ---------- |
+| `--format, -f`    | 出力形式 (`dbml` \| `markdown`) | `dbml`     |
+| `--single-file`   | Markdown を単一ファイルに出力   | `false`    |
+| `--no-er-diagram` | ER図を含めない                  | `false`    |
 
 ### 5.6 ディレクトリ構造の変更
 
@@ -510,11 +512,11 @@ src/
 
 ## Appendix: 方針比較サマリ
 
-| 観点 | 方針 A (Formatter) | 方針 B (Generator) | 方針 C (Builder) |
-|------|-------------------|-------------------|-----------------|
-| 拡張性 | ◎ 高い | △ 低い | ○ 中程度 |
-| 保守性 | ◎ 高い | × 低い | ○ 中程度 |
-| 実装コスト | ○ 中程度 | × 高い | ◎ 低い |
-| 既存コードへの影響 | ○ 中程度 | ◎ 最小 | △ 大きい |
-| テスト容易性 | ◎ 高い | ○ 中程度 | △ 低い |
-| **総合評価** | **◎ 推奨** | △ 非推奨 | ○ 次点 |
+| 観点               | 方針 A (Formatter) | 方針 B (Generator) | 方針 C (Builder) |
+| ------------------ | ------------------ | ------------------ | ---------------- |
+| 拡張性             | ◎ 高い             | △ 低い             | ○ 中程度         |
+| 保守性             | ◎ 高い             | × 低い             | ○ 中程度         |
+| 実装コスト         | ○ 中程度           | × 高い             | ◎ 低い           |
+| 既存コードへの影響 | ○ 中程度           | ◎ 最小             | △ 大きい         |
+| テスト容易性       | ◎ 高い             | ○ 中程度           | △ 低い           |
+| **総合評価**       | **◎ 推奨**         | △ 非推奨           | ○ 次点           |
