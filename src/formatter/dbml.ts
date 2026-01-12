@@ -3,11 +3,13 @@ import type {
   TableDefinition,
   ColumnDefinition,
   IndexDefinition,
+  ConstraintDefinition,
   RelationDefinition,
   EnumDefinition,
+  DatabaseType,
 } from "../types";
 import type { OutputFormatter, FormatterOptions } from "./types";
-import { DbmlBuilder } from "../generator/common";
+import { DbmlBuilder } from "./dbml-builder";
 
 /**
  * Default formatter options
@@ -26,6 +28,7 @@ const DEFAULT_OPTIONS: Required<FormatterOptions> = {
  */
 export class DbmlFormatter implements OutputFormatter {
   private options: Required<FormatterOptions>;
+  private databaseType: DatabaseType = "postgresql";
 
   /**
    * Create a new DbmlFormatter
@@ -44,6 +47,9 @@ export class DbmlFormatter implements OutputFormatter {
    */
   format(schema: IntermediateSchema): string {
     const dbml = new DbmlBuilder();
+
+    // Store database type for name escaping
+    this.databaseType = schema.databaseType;
 
     // Generate enums (PostgreSQL specific)
     for (const enumDef of schema.enums) {
@@ -92,9 +98,14 @@ export class DbmlFormatter implements OutputFormatter {
       this.formatColumn(dbml, column);
     }
 
-    // Generate indexes block if enabled and there are indexes
-    if (this.options.includeIndexes && table.indexes.length > 0) {
-      this.formatIndexes(dbml, table.indexes);
+    // Generate indexes block if enabled and there are indexes or constraints to show
+    const hasIndexes = table.indexes.length > 0;
+    const pkConstraints = table.constraints.filter((c) => c.type === "primary_key");
+    const ucConstraints = table.constraints.filter((c) => c.type === "unique");
+    const hasConstraints = pkConstraints.length > 0 || ucConstraints.length > 0;
+
+    if (this.options.includeIndexes && (hasIndexes || hasConstraints)) {
+      this.formatIndexesBlock(dbml, table.indexes, pkConstraints, ucConstraints);
     }
 
     // Add table-level Note if comment exists and comments are enabled
@@ -153,6 +164,12 @@ export class DbmlFormatter implements OutputFormatter {
 
   /**
    * Format a default value for DBML
+   *
+   * The value comes from IntermediateSchema in "raw" format:
+   * - SQL expressions: no wrapping (e.g., "now()", "gen_random_uuid()")
+   * - Strings: already wrapped with single quotes (e.g., "'user'")
+   * - Numbers/booleans: as-is (e.g., "true", "42")
+   * - null: "null"
    */
   private formatDefaultValue(value: string): string {
     // If it looks like a SQL expression (contains parentheses or is a known function)
@@ -171,7 +188,13 @@ export class DbmlFormatter implements OutputFormatter {
     if (/^-?\d+(\.\d+)?$/.test(value)) {
       return value;
     }
-    // Otherwise treat as string
+    // If already wrapped in single quotes (from IntermediateSchema)
+    if (value.startsWith("'") && value.endsWith("'")) {
+      // Convert '' escape (SQL standard) to \' escape (DBML)
+      const inner = value.slice(1, -1).replace(/''/g, "\\'");
+      return `'${inner}'`;
+    }
+    // Otherwise treat as string (shouldn't happen with proper IntermediateSchema)
     return `'${value.replace(/'/g, "\\'")}'`;
   }
 
@@ -194,12 +217,32 @@ export class DbmlFormatter implements OutputFormatter {
 
   /**
    * Format indexes block to DBML
+   *
+   * Includes primary key constraints, unique constraints, and regular indexes.
    */
-  private formatIndexes(dbml: DbmlBuilder, indexes: IndexDefinition[]): void {
+  private formatIndexesBlock(
+    dbml: DbmlBuilder,
+    indexes: IndexDefinition[],
+    pkConstraints: ConstraintDefinition[],
+    ucConstraints: ConstraintDefinition[],
+  ): void {
     dbml.line();
     dbml.line("indexes {");
     dbml.indent();
 
+    // Primary key constraints
+    for (const pk of pkConstraints) {
+      const columns = pk.columns.map((c) => this.escapeName(c)).join(", ");
+      dbml.line(`(${columns}) [pk]`);
+    }
+
+    // Unique constraints
+    for (const uc of ucConstraints) {
+      const columns = uc.columns.map((c) => this.escapeName(c)).join(", ");
+      dbml.line(`(${columns}) [unique]`);
+    }
+
+    // Regular indexes
     for (const index of indexes) {
       const columns = index.columns.map((c) => this.escapeName(c)).join(", ");
       const attrs: string[] = [];
@@ -264,13 +307,16 @@ export class DbmlFormatter implements OutputFormatter {
   }
 
   /**
-   * Escape a name for DBML if it contains special characters
+   * Escape a name for DBML based on database type
+   *
+   * - PostgreSQL/SQLite: Use double quotes ("name")
+   * - MySQL: Use backticks (`name`)
    */
   private escapeName(name: string): string {
-    // DBML requires quoting names with special characters or reserved words
-    if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
-      return name;
+    if (this.databaseType === "mysql") {
+      return `\`${name}\``;
     }
+    // PostgreSQL and SQLite use double quotes
     return `"${name}"`;
   }
 

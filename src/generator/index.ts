@@ -12,4 +12,5 @@
 export { pgGenerate, PgGenerator } from "./pg";
 export { mysqlGenerate, MySqlGenerator } from "./mysql";
 export { sqliteGenerate, SqliteGenerator } from "./sqlite";
-export { BaseGenerator, DbmlBuilder, writeDbmlFile } from "./common";
+export { BaseGenerator, writeDbmlFile } from "./common";
+export { DbmlBuilder } from "../formatter/dbml-builder";

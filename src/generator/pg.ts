@@ -1,6 +1,6 @@
 import { type AnyColumn, getTableColumns } from "drizzle-orm";
 import { PgEnumColumn } from "drizzle-orm/pg-core";
-import { BaseGenerator, DbmlBuilder, writeDbmlFile, type DialectConfig } from "./common";
+import { BaseGenerator, writeDbmlFile, type DialectConfig } from "./common";
 import type { GenerateOptions, EnumDefinition } from "../types";
 
 /**
@@ -19,28 +19,6 @@ export class PgGenerator<
       return sqlType.includes("serial");
     },
   };
-
-  /**
-   * Generate DBML including PostgreSQL-specific constructs like enums
-   */
-  override generate(): string {
-    const dbml = new DbmlBuilder();
-
-    // Generate enums first
-    const enums = this.collectEnums();
-    for (const [name, values] of enums) {
-      this.generateEnum(dbml, name, values);
-      dbml.line();
-    }
-
-    // Then generate tables and refs
-    const baseOutput = super.generate();
-    if (baseOutput) {
-      dbml.line(baseOutput);
-    }
-
-    return dbml.build().trim();
-  }
 
   /**
    * Collect all enum types from the schema
@@ -65,19 +43,6 @@ export class PgGenerator<
     }
 
     return enums;
-  }
-
-  /**
-   * Generate a PostgreSQL enum definition
-   */
-  private generateEnum(dbml: DbmlBuilder, name: string, values: string[]): void {
-    dbml.line(`enum ${this.dialectConfig.escapeName(name)} {`);
-    dbml.indent();
-    for (const value of values) {
-      dbml.line(value);
-    }
-    dbml.dedent();
-    dbml.line("}");
   }
 
   /**
