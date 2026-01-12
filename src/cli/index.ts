@@ -256,7 +256,7 @@ function writeMarkdownMultipleFiles(
   // Ensure output directory exists
   mkdirSync(outputDir, { recursive: true });
 
-  const markdownFormatter = new MarkdownFormatter();
+  const markdownFormatter = new MarkdownFormatter({ linkFormat: "file" });
 
   // Write README.md with index
   const index = markdownFormatter.generateIndex(intermediateSchema);
@@ -266,7 +266,7 @@ function writeMarkdownMultipleFiles(
   if (options.erDiagram) {
     const mermaidFormatter = new MermaidErDiagramFormatter();
     const erDiagram = mermaidFormatter.format(intermediateSchema);
-    readme += `\n---\n\n## ER Diagram\n\n\`\`\`mermaid\n${erDiagram}\n\`\`\``;
+    readme += `\n---\n\n## ER Diagram\n\n\`\`\`mermaid\n${erDiagram}\n\`\`\`\n`;
   }
 
   writeFileSync(join(outputDir, "README.md"), readme, "utf-8");
@@ -275,7 +275,7 @@ function writeMarkdownMultipleFiles(
   for (const table of intermediateSchema.tables) {
     const tableDoc = markdownFormatter.generateTableDoc(table, intermediateSchema);
     const fileName = `${table.name}.md`;
-    writeFileSync(join(outputDir, fileName), `# ${table.name}\n\n${tableDoc}`, "utf-8");
+    writeFileSync(join(outputDir, fileName), `# ${table.name}\n\n${tableDoc}\n`, "utf-8");
   }
 }
 
@@ -285,7 +285,7 @@ function writeMarkdownMultipleFiles(
 function writeSingleMarkdownFile(content: string, outputPath: string): void {
   const dir = dirname(outputPath);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(outputPath, content, "utf-8");
+  writeFileSync(outputPath, content.endsWith("\n") ? content : content + "\n", "utf-8");
 }
 
 /**
@@ -380,7 +380,7 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
         }
         const dir = dirname(options.output);
         mkdirSync(dir, { recursive: true });
-        writeFileSync(options.output, dbml, "utf-8");
+        writeFileSync(options.output, dbml.endsWith("\n") ? dbml : dbml + "\n", "utf-8");
         console.log(`DBML generated: ${options.output}`);
       } else {
         console.log(dbml);

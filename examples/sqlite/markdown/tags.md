@@ -8,7 +8,7 @@ Tags for categorizing posts
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 |------|------|---------|----------|----------|---------|---------|
-| **id** | integer | - | NO | [post_tags.tag_id](#post-tags) | - | Auto-generated unique identifier |
+| **id** | integer | - | NO | [post_tags.tag_id](./post_tags.md) | - | Auto-generated unique identifier |
 | name | text | - | NO | - | - | Tag name (must be unique) |
 | color | text | `'#000000'` | YES | - | - | Tag color for display |
 
@@ -22,4 +22,4 @@ Tags for categorizing posts
 
 | Parent | Child | Type |
 |--------|-------|------|
-| **[tags.id](#tags)** | [post_tags.tag_id](#post-tags) | Many to One |
+| **[tags.id](./tags.md)** | [post_tags.tag_id](./post_tags.md) | Many to One |

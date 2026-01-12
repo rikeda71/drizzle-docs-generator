@@ -10,6 +10,11 @@ import type {
 import type { OutputFormatter, FormatterOptions } from "./types";
 
 /**
+ * Link format for table references
+ */
+export type LinkFormat = "anchor" | "file";
+
+/**
  * Options for MarkdownFormatter
  */
 export interface MarkdownFormatterOptions extends FormatterOptions {
@@ -18,6 +23,11 @@ export interface MarkdownFormatterOptions extends FormatterOptions {
    * @default true
    */
   useRelativeLinks?: boolean;
+  /**
+   * Link format: "anchor" for #table-name, "file" for ./table-name.md
+   * @default "anchor"
+   */
+  linkFormat?: LinkFormat;
 }
 
 /**
@@ -28,6 +38,7 @@ const DEFAULT_OPTIONS: Required<MarkdownFormatterOptions> = {
   includeIndexes: true,
   includeConstraints: true,
   useRelativeLinks: true,
+  linkFormat: "anchor",
 };
 
 /**
@@ -108,9 +119,7 @@ export class MarkdownFormatter implements OutputFormatter {
 
     // Table rows
     for (const table of schema.tables) {
-      const name = this.options.useRelativeLinks
-        ? `[${table.name}](#${this.slugify(table.name)})`
-        : table.name;
+      const name = this.options.useRelativeLinks ? this.createTableLink(table.name) : table.name;
       const columnCount = table.columns.length;
       const comment =
         this.options.includeComments && table.comment ? this.escapeMarkdown(table.comment) : "";
@@ -281,10 +290,10 @@ export class MarkdownFormatter implements OutputFormatter {
 
       // Add links if enabled
       const parentLink = this.options.useRelativeLinks
-        ? `[${parent}](#${this.slugify(relation.toTable)})`
+        ? this.createTableLink(relation.toTable, parent)
         : parent;
       const childLink = this.options.useRelativeLinks
-        ? `[${child}](#${this.slugify(relation.fromTable)})`
+        ? this.createTableLink(relation.fromTable, child)
         : child;
 
       // Highlight the current table
@@ -369,7 +378,7 @@ export class MarkdownFormatter implements OutputFormatter {
     return relations
       .map((r) => {
         const text = `${r.table}.${r.column}`;
-        return this.options.useRelativeLinks ? `[${text}](#${this.slugify(r.table)})` : text;
+        return this.options.useRelativeLinks ? this.createTableLink(r.table, text) : text;
       })
       .join(", ");
   }
@@ -427,6 +436,17 @@ export class MarkdownFormatter implements OutputFormatter {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
+  }
+
+  /**
+   * Create a table link based on the configured link format
+   */
+  private createTableLink(tableName: string, displayText?: string): string {
+    const text = displayText || tableName;
+    if (this.options.linkFormat === "file") {
+      return `[${text}](./${tableName}.md)`;
+    }
+    return `[${text}](#${this.slugify(tableName)})`;
   }
 
   /**

@@ -8,11 +8,11 @@ Blog posts created by users
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 |------|------|---------|----------|----------|---------|---------|
-| **id** | serial | - | NO | [comments.post_id](#comments), [post_tags.post_id](#post-tags) | - | Auto-generated unique identifier |
+| **id** | serial | - | NO | [comments.post_id](./comments.md), [post_tags.post_id](./post_tags.md) | - | Auto-generated unique identifier |
 | title | varchar(200) | - | NO | - | - | Post title |
 | content | text | - | YES | - | - | Post content body |
 | published | boolean | `false` | YES | - | - | Whether the post is published |
-| author_id | int | - | NO | - | [users.id](#users) | ID of the post author |
+| author_id | int | - | NO | - | [users.id](./users.md) | ID of the post author |
 | created_at | timestamp | `(now())` | YES | - | - | Timestamp when the post was created |
 
 ### Constraints
@@ -31,6 +31,6 @@ Blog posts created by users
 
 | Parent | Child | Type |
 |--------|-------|------|
-| **[posts.id](#posts)** | [comments.post_id](#comments) | Many to One |
-| **[posts.id](#posts)** | [post_tags.post_id](#post-tags) | Many to One |
-| [users.id](#users) | **[posts.author_id](#posts)** | Many to One |
+| **[posts.id](./posts.md)** | [comments.post_id](./comments.md) | Many to One |
+| **[posts.id](./posts.md)** | [post_tags.post_id](./post_tags.md) | Many to One |
+| [users.id](./users.md) | **[posts.author_id](./posts.md)** | Many to One |

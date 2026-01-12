@@ -8,8 +8,8 @@ Join table for many-to-many relationship between posts and tags
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 |------|------|---------|----------|----------|---------|---------|
-| post_id | integer | - | NO | - | [posts.id](#posts) | ID of the post |
-| tag_id | integer | - | NO | - | [tags.id](#tags) | ID of the tag |
+| post_id | integer | - | NO | - | [posts.id](./posts.md) | ID of the post |
+| tag_id | integer | - | NO | - | [tags.id](./tags.md) | ID of the tag |
 
 ### Constraints
 
@@ -23,5 +23,5 @@ Join table for many-to-many relationship between posts and tags
 
 | Parent | Child | Type |
 |--------|-------|------|
-| [posts.id](#posts) | **[post_tags.post_id](#post-tags)** | Many to One |
-| [tags.id](#tags) | **[post_tags.tag_id](#post-tags)** | Many to One |
+| [posts.id](./posts.md) | **[post_tags.post_id](./post_tags.md)** | Many to One |
+| [tags.id](./tags.md) | **[post_tags.tag_id](./post_tags.md)** | Many to One |

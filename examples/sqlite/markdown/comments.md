@@ -10,8 +10,8 @@ Comments on posts
 |------|------|---------|----------|----------|---------|---------|
 | **id** | integer | - | NO | - | - | Auto-generated unique identifier |
 | body | text | - | NO | - | - | Comment text |
-| post_id | integer | - | NO | - | [posts.id](#posts) | ID of the post this comment belongs to |
-| author_id | integer | - | NO | - | [users.id](#users) | ID of the user who wrote the comment |
+| post_id | integer | - | NO | - | [posts.id](./posts.md) | ID of the post this comment belongs to |
+| author_id | integer | - | NO | - | [users.id](./users.md) | ID of the user who wrote the comment |
 | created_at | integer | - | YES | - | - | Timestamp when the comment was created (stored as unix timestamp) |
 
 ### Constraints
@@ -25,5 +25,5 @@ Comments on posts
 
 | Parent | Child | Type |
 |--------|-------|------|
-| [posts.id](#posts) | **[comments.post_id](#comments)** | Many to One |
-| [users.id](#users) | **[comments.author_id](#comments)** | Many to One |
+| [posts.id](./posts.md) | **[comments.post_id](./comments.md)** | Many to One |
+| [users.id](./users.md) | **[comments.author_id](./comments.md)** | Many to One |
