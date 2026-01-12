@@ -5,9 +5,8 @@ import {
   getTableName,
   is,
   Relation,
-  One,
 } from "drizzle-orm";
-import type { AnyRelation, TableRelationalConfig } from "drizzle-orm/relations";
+import type { TableRelationalConfig } from "drizzle-orm/relations";
 import { PgTable, getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
 import { MySqlTable, getTableConfig as getMySqlTableConfig } from "drizzle-orm/mysql-core";
 import { SQLiteTable, getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
@@ -39,6 +38,7 @@ import type {
 } from "../types";
 import { extractComments, type SchemaComments } from "../parser/comments";
 import { extractRelations, type SchemaRelations } from "../parser/relations";
+import { V0RelationAdapter, V1RelationAdapter, type UnifiedRelation } from "../adapter";
 
 /**
  * Configuration for different database dialects
@@ -465,261 +465,40 @@ export abstract class BaseGenerator<
   }
 
   /**
-   * Check if there's a reverse one() relation (B->A when we have A->B)
+   * Create the appropriate relation adapter based on schema contents
    *
-   * Used to detect one-to-one relationships by checking if both tables
-   * have one() relations pointing to each other.
+   * Detects whether v1 or v0 relations are present and returns the
+   * corresponding adapter implementation.
    *
-   * @param sourceTable - The source table variable name
-   * @param targetTable - The target table variable name
-   * @param sourceFields - The source table's field names
-   * @param targetReferences - The target table's reference column names
-   * @returns True if a reverse one() relation exists
+   * @returns RelationAdapter instance (V1RelationAdapter or V0RelationAdapter)
    */
-  protected hasReverseOneRelation(
-    sourceTable: string,
-    targetTable: string,
-    sourceFields: string[],
-    targetReferences: string[],
-  ): boolean {
-    if (!this.parsedRelations) return false;
-
-    // Look for a one() relation from targetTable to sourceTable
-    for (const relation of this.parsedRelations.relations) {
-      if (
-        relation.type === "one" &&
-        relation.sourceTable === targetTable &&
-        relation.targetTable === sourceTable &&
-        relation.fields.length > 0 &&
-        relation.references.length > 0
-      ) {
-        // Check if the fields/references are the reverse of each other
-        // A->B: fields=[A.col], references=[B.col]
-        // B->A: fields=[B.col], references=[A.col]
-        const reverseFields = relation.fields;
-        const reverseReferences = relation.references;
-
-        // The reverse relation's fields should match our references
-        // and the reverse relation's references should match our fields
-        if (
-          this.arraysEqual(reverseFields, targetReferences) &&
-          this.arraysEqual(reverseReferences, sourceFields)
-        ) {
-          return true;
-        }
-      }
+  private createRelationAdapter() {
+    const v1Entries = this.getV1RelationEntries();
+    if (v1Entries.length > 0) {
+      return new V1RelationAdapter(v1Entries);
     }
-    return false;
+    return new V0RelationAdapter(this.schema, this.parsedRelations);
   }
 
   /**
-   * Helper to check if two arrays are equal
+   * Convert a UnifiedRelation to a RelationDefinition
    *
-   * @param a - First array
-   * @param b - Second array
-   * @returns True if arrays have same length and same elements in order
+   * Maps the unified relation format from adapters to the intermediate
+   * schema's RelationDefinition format.
+   *
+   * @param unified - The unified relation from adapter
+   * @returns RelationDefinition for intermediate schema
    */
-  private arraysEqual(a: string[], b: string[]): boolean {
-    if (a.length !== b.length) return false;
-    return a.every((val, i) => val === b[i]);
-  }
-
-  /**
-   * Generate references from v0 relations() API
-   *
-   * Uses TypeScript Compiler API to parse relations() definitions from source file
-   * and extract fields/references to generate DBML Ref lines.
-   *
-   * Detects one-to-one relationships when bidirectional one() relations exist.
-   */
-  protected generateRelationalRefsFromV0(): void {
-    if (!this.parsedRelations || this.parsedRelations.relations.length === 0) {
-      return;
-    }
-
-    const tableNameMapping = this.getTableNameMapping();
-    const processedRefs = new Set<string>();
-
-    for (const parsedRelation of this.parsedRelations.relations) {
-      // Only process one() relations with fields and references
-      // many() relations are typically the inverse and don't have field info
-      if (parsedRelation.type !== "one") {
-        continue;
-      }
-
-      if (parsedRelation.fields.length === 0 || parsedRelation.references.length === 0) {
-        continue;
-      }
-
-      // Map variable names to actual table names
-      const fromTableName = tableNameMapping.get(parsedRelation.sourceTable);
-      const toTableName = tableNameMapping.get(parsedRelation.targetTable);
-
-      if (!fromTableName || !toTableName) {
-        continue;
-      }
-
-      // Get column name mappings (TypeScript property names -> database column names)
-      const fromColumnMapping = this.getColumnNameMapping(parsedRelation.sourceTable);
-      const toColumnMapping = this.getColumnNameMapping(parsedRelation.targetTable);
-
-      // Map TypeScript field names to database column names
-      const fromColumns = parsedRelation.fields.map(
-        (field) => fromColumnMapping.get(field) || field,
-      );
-      const toColumns = parsedRelation.references.map((ref) => toColumnMapping.get(ref) || ref);
-
-      // Create a unique key to avoid duplicate refs (bidirectional)
-      const refKey = `${fromTableName}.${fromColumns.join(",")}-${toTableName}.${toColumns.join(",")}`;
-      const reverseRefKey = `${toTableName}.${toColumns.join(",")}-${fromTableName}.${fromColumns.join(",")}`;
-
-      if (processedRefs.has(refKey) || processedRefs.has(reverseRefKey)) {
-        continue;
-      }
-      processedRefs.add(refKey);
-
-      // Check if this is a one-to-one relationship (bidirectional one())
-      const isOneToOne = this.hasReverseOneRelation(
-        parsedRelation.sourceTable,
-        parsedRelation.targetTable,
-        parsedRelation.fields,
-        parsedRelation.references,
-      );
-
-      // Create GeneratedRef
-      // one-to-one: "-", many-to-one: ">"
-      const ref: GeneratedRef = {
-        fromTable: fromTableName,
-        fromColumns,
-        toTable: toTableName,
-        toColumns,
-        type: isOneToOne ? "-" : ">",
-      };
-
-      this.generatedRefs.push(ref);
-    }
-  }
-
-  /**
-   * Generate references from v1 defineRelations() entries
-   *
-   * Uses official Drizzle v1 types (TableRelationalConfig, Relation, One).
-   * Processes One relations to extract foreign key information and generates
-   * DBML Ref lines. Detects one-to-one relationships with bidirectional checks.
-   *
-   * @param entries - Array of v1 relation entries from defineRelations()
-   */
-  protected generateRelationalRefsFromV1(entries: TableRelationalConfig[]): void {
-    const processedRefs = new Set<string>();
-
-    for (const entry of entries) {
-      const sourceTableName = getTableName(entry.table as Table);
-
-      for (const relation of Object.values(entry.relations)) {
-        // Only process One relations as they define the FK direction
-        // Many relations are the inverse and don't add new information
-        if (!is(relation, One)) {
-          continue;
-        }
-
-        // Skip reversed relations (they are auto-generated inverse relations)
-        if ((relation as AnyRelation).isReversed) {
-          continue;
-        }
-
-        // Get source and target column names (using official Relation properties)
-        const rel = relation as AnyRelation;
-        const sourceColumns = rel.sourceColumns.map((col) => col.name);
-        const targetColumns = rel.targetColumns.map((col) => col.name);
-
-        if (sourceColumns.length === 0 || targetColumns.length === 0) {
-          continue;
-        }
-
-        const targetTableName = getTableName(rel.targetTable as Table);
-
-        // Create a unique key to avoid duplicate refs
-        const refKey = `${sourceTableName}.${sourceColumns.join(",")}->${targetTableName}.${targetColumns.join(",")}`;
-        const reverseRefKey = `${targetTableName}.${targetColumns.join(",")}->${sourceTableName}.${sourceColumns.join(",")}`;
-
-        if (processedRefs.has(refKey) || processedRefs.has(reverseRefKey)) {
-          continue;
-        }
-        processedRefs.add(refKey);
-
-        // Check if there's a reverse one() relation (indicating one-to-one)
-        const isOneToOne = this.hasV1ReverseOneRelation(
-          entries,
-          targetTableName,
-          sourceTableName,
-          targetColumns,
-          sourceColumns,
-        );
-
-        const ref: GeneratedRef = {
-          fromTable: sourceTableName,
-          fromColumns: sourceColumns,
-          toTable: targetTableName,
-          toColumns: targetColumns,
-          type: isOneToOne ? "-" : ">",
-        };
-
-        this.generatedRefs.push(ref);
-      }
-    }
-  }
-
-  /**
-   * Check if there's a reverse One relation in v1 entries
-   *
-   * Detects one-to-one relationships by checking if the target table
-   * has a matching One relation pointing back to the source table.
-   *
-   * @param entries - All v1 relation entries
-   * @param fromTableName - The table to search for reverse relation
-   * @param toTableName - The expected target table of the reverse relation
-   * @param fromColumns - The expected source columns of the reverse relation
-   * @param toColumns - The expected target columns of the reverse relation
-   * @returns True if a matching reverse One relation exists
-   */
-  protected hasV1ReverseOneRelation(
-    entries: TableRelationalConfig[],
-    fromTableName: string,
-    toTableName: string,
-    fromColumns: string[],
-    toColumns: string[],
-  ): boolean {
-    const fromEntry = entries.find((e) => getTableName(e.table as Table) === fromTableName);
-    if (!fromEntry) {
-      return false;
-    }
-
-    for (const relation of Object.values(fromEntry.relations)) {
-      if (!is(relation, One)) {
-        continue;
-      }
-
-      const rel = relation as AnyRelation;
-      const relTargetName = getTableName(rel.targetTable as Table);
-      if (relTargetName !== toTableName) {
-        continue;
-      }
-
-      const relSourceCols = rel.sourceColumns.map((col) => col.name);
-      const relTargetCols = rel.targetColumns.map((col) => col.name);
-
-      // Check if columns match in reverse
-      if (
-        relSourceCols.length === fromColumns.length &&
-        relTargetCols.length === toColumns.length &&
-        relSourceCols.every((col, i) => col === fromColumns[i]) &&
-        relTargetCols.every((col, i) => col === toColumns[i])
-      ) {
-        return true;
-      }
-    }
-
-    return false;
+  private unifiedRelationToDefinition(unified: UnifiedRelation): RelationDefinition {
+    return {
+      fromTable: unified.sourceTable,
+      fromColumns: unified.sourceColumns,
+      toTable: unified.targetTable,
+      toColumns: unified.targetColumns,
+      type: unified.relationType,
+      onDelete: unified.onDelete,
+      onUpdate: unified.onUpdate,
+    };
   }
 
   // Helper methods for extracting column information from constraints
@@ -805,8 +584,6 @@ export abstract class BaseGenerator<
    */
   toIntermediateSchema(): IntermediateSchema {
     const tables = this.getTables();
-    const v0Relations = this.getV0Relations();
-    const v1Entries = this.getV1RelationEntries();
 
     // Determine database type from the first table
     const databaseType = this.getDatabaseType(tables[0]);
@@ -817,17 +594,17 @@ export abstract class BaseGenerator<
     );
 
     // Collect relations
-    // Reset generatedRefs to collect fresh relations
-    this.generatedRefs = [];
+    let relations: RelationDefinition[] = [];
 
     if (this.relational) {
-      if (v1Entries.length > 0) {
-        this.generateRelationalRefsFromV1(v1Entries);
-      } else if (v0Relations.length > 0 || this.parsedRelations) {
-        this.generateRelationalRefsFromV0();
-      }
+      // Use adapter to extract relations in unified format
+      const adapter = this.createRelationAdapter();
+      const unifiedRelations = adapter.extract();
+      relations = unifiedRelations.map((unified) => this.unifiedRelationToDefinition(unified));
     } else {
-      // Collect foreign keys from table configs
+      // Collect foreign keys from table configs (legacy path)
+      // Reset generatedRefs to collect fresh relations
+      this.generatedRefs = [];
       for (const table of tables) {
         const tableName = getTableName(table);
         const tableConfig = this.getTableConfig(table);
@@ -835,12 +612,9 @@ export abstract class BaseGenerator<
           this.collectForeignKeysFromConfig(tableName, tableConfig.foreignKeys);
         }
       }
+      // Convert GeneratedRefs to RelationDefinitions
+      relations = this.generatedRefs.map((ref) => this.refToRelationDefinition(ref));
     }
-
-    // Convert GeneratedRefs to RelationDefinitions
-    const relations: RelationDefinition[] = this.generatedRefs.map((ref) =>
-      this.refToRelationDefinition(ref),
-    );
 
     // Collect enums (override in subclasses for dialect-specific behavior)
     const enums: EnumDefinition[] = this.collectEnumDefinitions();
