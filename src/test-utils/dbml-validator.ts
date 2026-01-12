@@ -173,3 +173,59 @@ export function countRefs(dbml: string): number {
   const matches = dbml.match(/^Ref:/gm);
   return matches ? matches.length : 0;
 }
+
+// ============================================
+// Markdown validation utilities
+// ============================================
+
+/**
+ * Check if Markdown output contains a table heading
+ *
+ * @param markdown - Markdown output string
+ * @param tableName - Table name to check
+ * @returns true if the table heading exists
+ */
+export function hasMarkdownTable(markdown: string, tableName: string): boolean {
+  return markdown.includes(`## ${tableName}`);
+}
+
+/**
+ * Check if Markdown output contains all expected table headings
+ *
+ * @param markdown - Markdown output string
+ * @param tableNames - Expected table names
+ * @returns true if all table headings are present
+ */
+export function hasAllMarkdownTables(markdown: string, tableNames: string[]): boolean {
+  return tableNames.every((name) => hasMarkdownTable(markdown, name));
+}
+
+/**
+ * Check if Markdown output contains an ER diagram
+ *
+ * @param markdown - Markdown output string
+ * @returns true if ER diagram exists
+ */
+export function hasErDiagram(markdown: string): boolean {
+  return markdown.includes("```mermaid") && markdown.includes("erDiagram");
+}
+
+/**
+ * Check if Markdown output contains the Tables index
+ *
+ * @param markdown - Markdown output string
+ * @returns true if index exists
+ */
+export function hasTablesIndex(markdown: string): boolean {
+  return markdown.includes("# Tables");
+}
+
+/**
+ * Check if Markdown output contains a Columns section for a table
+ *
+ * @param markdown - Markdown output string
+ * @returns true if Columns section exists
+ */
+export function hasColumnsSection(markdown: string): boolean {
+  return markdown.includes("### Columns");
+}
