@@ -42,5 +42,9 @@ export type {
 } from "./types";
 
 // Output Formatters
-export { DbmlFormatter } from "./formatter/index";
-export type { OutputFormatter, FormatterOptions } from "./formatter/index";
+export { DbmlFormatter, MarkdownFormatter } from "./formatter/index";
+export type {
+  OutputFormatter,
+  FormatterOptions,
+  MarkdownFormatterOptions,
+} from "./formatter/index";
