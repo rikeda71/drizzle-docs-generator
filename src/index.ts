@@ -8,21 +8,15 @@
  */
 
 // Comment extraction from source files
-export { extractComments } from "./parser/index";
-export type { SchemaComments, TableComment, ColumnComment } from "./parser/index";
+export { extractComments } from "./parser/comments";
+export type { SchemaComments, TableComment, ColumnComment } from "./parser/comments";
 
 // DBML generators
-export {
-  pgGenerate,
-  PgGenerator,
-  mysqlGenerate,
-  MySqlGenerator,
-  sqliteGenerate,
-  SqliteGenerator,
-  BaseGenerator,
-  DbmlBuilder,
-  writeDbmlFile,
-} from "./generator/index";
+export { pgGenerate, PgGenerator } from "./generator/pg";
+export { mysqlGenerate, MySqlGenerator } from "./generator/mysql";
+export { sqliteGenerate, SqliteGenerator } from "./generator/sqlite";
+export { BaseGenerator, writeDbmlFile } from "./generator/common";
+export { DbmlBuilder } from "./formatter/dbml-builder";
 
 // Types
 export type { GenerateOptions, GeneratedRef, ColumnAttributes, RelationType } from "./types";
@@ -42,10 +36,9 @@ export type {
 } from "./types";
 
 // Output Formatters
-export { DbmlFormatter, MarkdownFormatter, MermaidErDiagramFormatter } from "./formatter/index";
-export type {
-  OutputFormatter,
-  FormatterOptions,
-  MarkdownFormatterOptions,
-  MermaidFormatterOptions,
-} from "./formatter/index";
+export { DbmlFormatter } from "./formatter/dbml";
+export { MarkdownFormatter } from "./formatter/markdown";
+export { MermaidErDiagramFormatter } from "./formatter/mermaid";
+export type { OutputFormatter, FormatterOptions } from "./formatter/types";
+export type { MarkdownFormatterOptions } from "./formatter/markdown";
+export type { MermaidFormatterOptions } from "./formatter/mermaid";

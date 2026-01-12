@@ -29,7 +29,9 @@ import type {
 } from "../types";
 import { extractComments, type SchemaComments } from "../parser/comments";
 import { extractRelations, type SchemaRelations } from "../parser/relations";
-import { V0RelationAdapter, V1RelationAdapter, type UnifiedRelation } from "../adapter";
+import { V0RelationAdapter } from "../adapter/v0-adapter";
+import { V1RelationAdapter } from "../adapter/v1-adapter";
+import type { UnifiedRelation } from "../adapter/types";
 
 /**
  * Configuration for different database dialects
