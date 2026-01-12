@@ -26,3 +26,17 @@ export {
 
 // Types
 export type { GenerateOptions, GeneratedRef, ColumnAttributes, RelationType } from "./types";
+
+// Intermediate Schema Types (for output formatters)
+export type {
+  DatabaseType,
+  ColumnDefinition,
+  IndexDefinition,
+  ConstraintType,
+  ConstraintDefinition,
+  TableDefinition,
+  IntermediateRelationType,
+  RelationDefinition,
+  EnumDefinition,
+  IntermediateSchema,
+} from "./types";
