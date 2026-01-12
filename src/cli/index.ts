@@ -18,8 +18,12 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { pgGenerate, mysqlGenerate, sqliteGenerate } from "../generator/index";
-import { PgGenerator, MySqlGenerator, SqliteGenerator } from "../generator/index";
+import { pgGenerate } from "../generator/pg";
+import { mysqlGenerate } from "../generator/mysql";
+import { sqliteGenerate } from "../generator/sqlite";
+import { PgGenerator } from "../generator/pg";
+import { MySqlGenerator } from "../generator/mysql";
+import { SqliteGenerator } from "../generator/sqlite";
 import { MarkdownFormatter } from "../formatter/markdown";
 import { MermaidErDiagramFormatter } from "../formatter/mermaid";
 import { register } from "tsx/esm/api";
