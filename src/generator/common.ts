@@ -318,32 +318,46 @@ export abstract class BaseGenerator<
    */
   protected getTableConfig(table: Table): TableConfig | undefined {
     // Detect dialect and use appropriate config getter
+    // Cast is required at boundary due to Drizzle ORM's internal SQL<unknown> | Column union types
     if (is(table, PgTable)) {
       const config = getPgTableConfig(table);
-      return this.mapTableConfig(config);
+      return this.mapTableConfig(config as Parameters<typeof this.mapTableConfig>[0]);
     }
     if (is(table, MySqlTable)) {
       const config = getMySqlTableConfig(table);
-      return this.mapTableConfig(config);
+      return this.mapTableConfig(config as Parameters<typeof this.mapTableConfig>[0]);
     }
     if (is(table, SQLiteTable)) {
       const config = getSqliteTableConfig(table);
-      return this.mapTableConfig(config);
+      return this.mapTableConfig(config as Parameters<typeof this.mapTableConfig>[0]);
     }
     return undefined;
   }
 
   /**
    * Map Drizzle's internal table config to our typed TableConfig
+   *
+   * Note: Drizzle ORM's columns type is `SQL<unknown> | IndexedColumn` union,
+   * so we use `{ name?: string }` and cast to access the name property.
+   * This is unavoidable due to Drizzle's internal type structure.
    */
   private mapTableConfig(config: {
     indexes: Array<{
-      config: { columns: unknown[]; name?: string; unique?: boolean; using?: string };
+      config: {
+        columns: Array<{ name?: string }>;
+        name?: string;
+        unique?: boolean;
+        using?: string;
+      };
     }>;
-    primaryKeys: Array<{ columns: unknown[]; name?: string }>;
-    uniqueConstraints: Array<{ columns: unknown[]; name?: string }>;
+    primaryKeys: Array<{ columns: Array<{ name?: string }>; name?: string }>;
+    uniqueConstraints: Array<{ columns: Array<{ name?: string }>; name?: string }>;
     foreignKeys: Array<{
-      reference: () => { columns: unknown[]; foreignColumns: unknown[]; foreignTable: Table };
+      reference: () => {
+        columns: Array<{ name: string }>;
+        foreignColumns: Array<{ name: string }>;
+        foreignTable: Table;
+      };
       name?: string;
       onDelete?: string;
       onUpdate?: string;
@@ -352,22 +366,28 @@ export abstract class BaseGenerator<
     return {
       indexes: (config.indexes || []).map((idx) => ({
         config: {
-          columns: idx.config.columns.map((c) => ({ name: (c as { name: string }).name })),
+          columns: idx.config.columns
+            .filter((c): c is { name: string } => typeof c.name === "string")
+            .map((c) => ({ name: c.name })),
           name: idx.config.name,
           unique: idx.config.unique ?? false,
           using: idx.config.using,
         },
       })),
       primaryKeys: (config.primaryKeys || []).map((pk) => ({
-        columns: pk.columns.map((c) => ({ name: (c as { name: string }).name })),
+        columns: pk.columns
+          .filter((c): c is { name: string } => typeof c.name === "string")
+          .map((c) => ({ name: c.name })),
         name: pk.name,
       })),
       uniqueConstraints: (config.uniqueConstraints || []).map((uc) => ({
-        columns: uc.columns.map((c) => ({ name: (c as { name: string }).name })),
+        columns: uc.columns
+          .filter((c): c is { name: string } => typeof c.name === "string")
+          .map((c) => ({ name: c.name })),
         name: uc.name,
       })),
       foreignKeys: (config.foreignKeys || []).map((fk) => ({
-        reference: fk.reference as ForeignKeyConfig["reference"],
+        reference: fk.reference,
         name: fk.name,
         onDelete: fk.onDelete,
         onUpdate: fk.onUpdate,
