@@ -51,6 +51,7 @@ interface GenerateCommandOptions {
   format: OutputFormat;
   singleFile?: boolean;
   erDiagram: boolean; // commander uses --no-er-diagram which sets erDiagram to false
+  force?: boolean; // skip overwrite confirmation for existing files
 }
 
 /**
@@ -84,7 +85,34 @@ function getGeneratorClass(dialect: Dialect) {
 }
 
 /**
+ * Check if output directory has existing files
+ */
+function hasExistingFiles(outputDir: string, tableNames: string[]): string[] {
+  const existingFiles: string[] = [];
+
+  if (!existsSync(outputDir)) {
+    return existingFiles;
+  }
+
+  const readmePath = join(outputDir, "README.md");
+  if (existsSync(readmePath)) {
+    existingFiles.push(readmePath);
+  }
+
+  for (const tableName of tableNames) {
+    const tablePath = join(outputDir, `${tableName}.md`);
+    if (existsSync(tablePath)) {
+      existingFiles.push(tablePath);
+    }
+  }
+
+  return existingFiles;
+}
+
+/**
  * Generate output from a schema file (for watch mode)
+ * Returns the generated output string for single-file formats,
+ * or writes multiple files directly for multi-file markdown
  */
 async function generateFromSchema(
   schemaPath: string,
@@ -105,6 +133,13 @@ async function generateFromSchema(
       source: schemaPath,
     });
     const intermediateSchema = generator.toIntermediateSchema();
+
+    // Handle multi-file output in watch mode
+    if (!options.singleFile && options.output) {
+      writeMarkdownMultipleFiles(intermediateSchema, options.output, options);
+      return undefined;
+    }
+
     return generateMarkdownOutput(intermediateSchema, options);
   } else {
     const generate = getGenerateFunction(options.dialect);
@@ -297,6 +332,13 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
         const content = generateMarkdownOutput(intermediateSchema, options);
 
         if (options.output) {
+          // Check for existing file if --force is not specified
+          if (!options.force && existsSync(options.output)) {
+            console.error(
+              `Error: Output file already exists: ${options.output}\nUse --force to overwrite existing files.`,
+            );
+            process.exit(1);
+          }
           writeSingleMarkdownFile(content, options.output);
           console.log(`Markdown generated: ${options.output}`);
         } else {
@@ -309,6 +351,17 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
           const content = generateMarkdownOutput(intermediateSchema, options);
           console.log(content);
         } else {
+          // Check for existing files if --force is not specified
+          if (!options.force) {
+            const tableNames = intermediateSchema.tables.map((t) => t.name);
+            const existingFiles = hasExistingFiles(options.output, tableNames);
+            if (existingFiles.length > 0) {
+              console.error(
+                `Error: The following files already exist:\n${existingFiles.map((f) => `  - ${f}`).join("\n")}\nUse --force to overwrite existing files.`,
+              );
+              process.exit(1);
+            }
+          }
           writeMarkdownMultipleFiles(intermediateSchema, options.output, options);
           console.log(`Markdown generated: ${options.output}/`);
         }
@@ -318,6 +371,13 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
       const dbml = generateDbmlOutput(mergedSchema, schemaPaths, options);
 
       if (options.output) {
+        // Check for existing file if --force is not specified
+        if (!options.force && existsSync(options.output)) {
+          console.error(
+            `Error: Output file already exists: ${options.output}\nUse --force to overwrite existing files.`,
+          );
+          process.exit(1);
+        }
         const dir = dirname(options.output);
         mkdirSync(dir, { recursive: true });
         writeFileSync(options.output, dbml, "utf-8");
@@ -358,11 +418,14 @@ function watchSchema(schema: string, options: GenerateCommandOptions): void {
         try {
           const output = await generateFromSchema(schemaPath, options);
           const formatLabel = options.format === "markdown" ? "Markdown" : "DBML";
+          const isMultiFile =
+            options.format === "markdown" && !options.singleFile && options.output;
 
           if (!options.output && output) {
             console.log(output);
           } else if (options.output) {
-            console.log(`${formatLabel} regenerated: ${options.output}`);
+            const outputLabel = isMultiFile ? `${options.output}/` : options.output;
+            console.log(`${formatLabel} regenerated: ${outputLabel}`);
           }
         } catch (error) {
           if (error instanceof Error) {
@@ -387,6 +450,7 @@ program
   .option("-w, --watch", "Watch for file changes and regenerate")
   .option("--single-file", "Output Markdown as a single file (for markdown format)")
   .option("--no-er-diagram", "Exclude ER diagram from Markdown output")
+  .option("--force", "Overwrite existing files without confirmation")
   .action(async (schema: string, options: GenerateCommandOptions) => {
     // Validate dialect
     const validDialects: Dialect[] = ["postgresql", "mysql", "sqlite"];

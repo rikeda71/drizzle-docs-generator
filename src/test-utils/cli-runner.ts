@@ -84,6 +84,7 @@ export async function runGenerate(
     format?: "dbml" | "markdown";
     singleFile?: boolean;
     noErDiagram?: boolean;
+    force?: boolean;
     cwd?: string;
   } = {},
 ): Promise<CliResult> {
@@ -107,6 +108,10 @@ export async function runGenerate(
 
   if (options.noErDiagram) {
     args.push("--no-er-diagram");
+  }
+
+  if (options.force) {
+    args.push("--force");
   }
 
   return runCli(args, { cwd: options.cwd });
