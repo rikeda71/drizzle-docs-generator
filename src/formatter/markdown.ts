@@ -144,9 +144,9 @@ export class MarkdownFormatter implements OutputFormatter {
     lines.push(`## ${table.name}`);
     lines.push("");
 
-    // Table comment
+    // Table comment (preserve newlines as <br> for better readability)
     if (this.options.includeComments && table.comment) {
-      lines.push(this.escapeMarkdown(table.comment));
+      lines.push(this.escapeMarkdownWithBreaks(table.comment));
       lines.push("");
     }
 
@@ -451,8 +451,17 @@ export class MarkdownFormatter implements OutputFormatter {
 
   /**
    * Escape special Markdown characters in a string
+   * Converts newlines to spaces for use in table cells
    */
   private escapeMarkdown(str: string): string {
     return str.replace(/\|/g, "\\|").replace(/\n/g, " ");
+  }
+
+  /**
+   * Escape special Markdown characters and convert newlines to <br> tags
+   * Used for better readability in text sections (not in tables)
+   */
+  private escapeMarkdownWithBreaks(str: string): string {
+    return str.replace(/\|/g, "\\|").replace(/\n/g, "  \n");
   }
 }
