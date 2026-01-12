@@ -28,8 +28,8 @@ import {
 setupIntegrationTest();
 
 describe("SQLite v0 (relations())", () => {
-  it("should generate DBML and relations with -r flag", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V0, "sqlite", { relational: true });
+  it("should auto-detect relations() and generate DBML with relations", async () => {
+    const result = await runGenerate(SQLITE_SCHEMA_V0, "sqlite");
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -97,8 +97,8 @@ describe("SQLite v1 (defineRelations())", () => {
     expect(result.stdout).toContain('"id" integer [primary key, not null, increment');
   });
 
-  it("should generate relations with -r flag using defineRelations", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { relational: true });
+  it("should auto-detect defineRelations() and generate relations", async () => {
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite");
 
     expect(result.exitCode).toBe(0);
     expect(countRefs(result.stdout)).toBeGreaterThan(0);

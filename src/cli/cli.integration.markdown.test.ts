@@ -105,10 +105,9 @@ describe("Markdown Format Output", () => {
     rmSync(outputDir, { recursive: true, force: true });
   });
 
-  it("should generate Markdown with relations using -r flag", async () => {
+  it("should auto-detect defineRelations() and generate Markdown with relations", async () => {
     const result = await runGenerate(PG_SCHEMA_V1, "postgresql", {
       format: "markdown",
-      relational: true,
     });
 
     expect(result.exitCode).toBe(0);

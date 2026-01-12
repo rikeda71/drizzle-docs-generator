@@ -65,11 +65,19 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --no-er-diagr
 | `-o, --output <path>`     | Output file or directory path                       |
 | `-d, --dialect <dialect>` | Database: `postgresql` (default), `mysql`, `sqlite` |
 | `-f, --format <format>`   | Output format: `dbml` (default), `markdown`         |
-| `-r, --relational`        | Generate refs from relations() definitions          |
 | `-w, --watch`             | Regenerate on file changes                          |
 | `--single-file`           | Output Markdown as a single file (markdown only)    |
 | `--no-er-diagram`         | Exclude ER diagram from Markdown output             |
 | `--force`                 | Overwrite existing files without confirmation       |
+
+### Relation Detection
+
+Relations are **automatically detected** from your schema:
+
+- **v1 API** (`defineRelations()`): Detected from schema objects at runtime
+- **v0 API** (`relations()`): Detected by parsing source files
+
+No configuration needed - the tool will use relation definitions when present, or fall back to foreign key constraints.
 
 ## Example
 
@@ -119,8 +127,7 @@ import * as schema from "./schema";
 
 const dbml = pgGenerate({
   schema,
-  source: "./schema.ts",
-  relational: false,
+  source: "./schema.ts", // for JSDoc comments and v0 relations() detection
   out: "./output.dbml", // optional
 });
 ```

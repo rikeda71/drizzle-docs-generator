@@ -63,11 +63,11 @@ describe("Cross-Dialect Consistency (v1 API)", () => {
     expect(sqliteResult.stdout).toContain("Note:");
   });
 
-  it("should generate relations with -r flag across all dialects", async () => {
+  it("should auto-detect relations across all dialects", async () => {
     const [pgResult, mysqlResult, sqliteResult] = await Promise.all([
-      runGenerate(PG_SCHEMA_V1, "postgresql", { relational: true }),
-      runGenerate(MYSQL_SCHEMA_V1, "mysql", { relational: true }),
-      runGenerate(SQLITE_SCHEMA_V1, "sqlite", { relational: true }),
+      runGenerate(PG_SCHEMA_V1, "postgresql"),
+      runGenerate(MYSQL_SCHEMA_V1, "mysql"),
+      runGenerate(SQLITE_SCHEMA_V1, "sqlite"),
     ]);
 
     expect(pgResult.exitCode).toBe(0);

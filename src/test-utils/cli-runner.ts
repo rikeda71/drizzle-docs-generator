@@ -80,7 +80,6 @@ export async function runGenerate(
   dialect: "postgresql" | "mysql" | "sqlite",
   options: {
     output?: string;
-    relational?: boolean;
     format?: "dbml" | "markdown";
     singleFile?: boolean;
     noErDiagram?: boolean;
@@ -92,10 +91,6 @@ export async function runGenerate(
 
   if (options.output) {
     args.push("-o", options.output);
-  }
-
-  if (options.relational) {
-    args.push("-r");
   }
 
   if (options.format) {

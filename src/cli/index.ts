@@ -46,7 +46,6 @@ type OutputFormat = "dbml" | "markdown";
 interface GenerateCommandOptions {
   output?: string;
   dialect: Dialect;
-  relational?: boolean;
   watch?: boolean;
   format: OutputFormat;
   singleFile?: boolean;
@@ -129,7 +128,6 @@ async function generateFromSchema(
     const GeneratorClass = getGeneratorClass(options.dialect);
     const generator = new GeneratorClass({
       schema: schemaModule,
-      relational: options.relational,
       source: schemaPath,
     });
     const intermediateSchema = generator.toIntermediateSchema();
@@ -145,7 +143,6 @@ async function generateFromSchema(
     const generate = getGenerateFunction(options.dialect);
     return generate({
       schema: schemaModule,
-      relational: options.relational,
       source: schemaPath,
     });
   }
@@ -218,7 +215,6 @@ function generateDbmlOutput(
   return (
     generate({
       schema: mergedSchema,
-      relational: options.relational,
       source: schemaPaths[0],
     }) || ""
   );
@@ -322,7 +318,6 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
       const GeneratorClass = getGeneratorClass(options.dialect);
       const generator = new GeneratorClass({
         schema: mergedSchema,
-        relational: options.relational,
         source: schemaPaths[0],
       });
       const intermediateSchema = generator.toIntermediateSchema();
@@ -446,7 +441,6 @@ program
   .option("-o, --output <path>", "Output file or directory path")
   .option("-d, --dialect <dialect>", "Database dialect (postgresql, mysql, sqlite)", "postgresql")
   .option("-f, --format <format>", "Output format (dbml, markdown)", "dbml")
-  .option("-r, --relational", "Use relations() definitions instead of foreign keys")
   .option("-w, --watch", "Watch for file changes and regenerate")
   .option("--single-file", "Output Markdown as a single file (for markdown format)")
   .option("--no-er-diagram", "Exclude ER diagram from Markdown output")

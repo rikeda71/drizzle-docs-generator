@@ -164,7 +164,9 @@ describe("pgGenerate with relations", () => {
     rmSync(RELATIONS_TEST_DIR, { recursive: true, force: true });
   });
 
-  it("should generate references from relations when relational option is true", () => {
+  it("should auto-detect v1 defineRelations() and generate references", async () => {
+    const { defineRelations } = await import("drizzle-orm");
+
     const users = pgTable("users", {
       id: serial("id").primaryKey(),
       name: text("name"),
@@ -176,24 +178,26 @@ describe("pgGenerate with relations", () => {
       authorId: integer("author_id").notNull(),
     });
 
-    const usersRelations = relations(users, ({ many }) => ({
-      posts: many(posts),
-    }));
-
-    const postsRelations = relations(posts, ({ one }) => ({
-      author: one(users, {
-        fields: [posts.authorId],
-        references: [users.id],
-      }),
+    const schema = { users, posts };
+    const rqbv2Relations = defineRelations(schema, (r) => ({
+      users: {
+        posts: r.many.posts(),
+      },
+      posts: {
+        author: r.one.users({
+          from: r.posts.authorId,
+          to: r.users.id,
+        }),
+      },
     }));
 
     const dbml = pgGenerate({
-      schema: { users, posts, usersRelations, postsRelations },
-      relational: true,
+      schema: { ...schema, rqbv2Relations },
     });
 
     expect(dbml).toContain('Table "users" {');
     expect(dbml).toContain('Table "posts" {');
+    expect(dbml).toContain('Ref: "posts"."author_id" > "users"."id"');
   });
 
   it("should generate Ref from relations() when sourceFile is provided", () => {
@@ -250,7 +254,6 @@ export const postsRelations = relations(posts, ({ one }) => ({
 
     const dbml = pgGenerate({
       schema: { users, posts, usersRelations, postsRelations },
-      relational: true,
       source: filePath,
     });
 
@@ -321,7 +324,6 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 
     const dbml = pgGenerate({
       schema: { users, posts, comments, commentsRelations },
-      relational: true,
       source: filePath,
     });
 
@@ -365,7 +367,6 @@ export const usersRelations = relations(users, ({ many }) => ({
 
     const dbml = pgGenerate({
       schema: { users, posts, usersRelations },
-      relational: true,
       source: filePath,
     });
 
@@ -431,7 +432,6 @@ export const profilesRelations = relations(profiles, ({ one }) => ({
 
     const dbml = pgGenerate({
       schema: { users, profiles, usersRelations, profilesRelations },
-      relational: true,
       source: filePath,
     });
 
@@ -498,7 +498,6 @@ export const postsRelations = relations(posts, ({ one }) => ({
 
     const dbml = pgGenerate({
       schema: { users, posts, postsRelations },
-      relational: true,
       source: schemaDir, // Use directory instead of file
     });
 
@@ -546,7 +545,6 @@ describe("pgGenerate with RQBv2 (defineRelations)", () => {
         usersRelEntry: rqbv2Relations.users,
         postsRelEntry: rqbv2Relations.posts,
       },
-      relational: true,
     });
 
     expect(dbml).toContain('Table "users" {');
@@ -593,7 +591,6 @@ describe("pgGenerate with RQBv2 (defineRelations)", () => {
         usersRelEntry: rqbv2Relations.users,
         profilesRelEntry: rqbv2Relations.profiles,
       },
-      relational: true,
     });
 
     expect(dbml).toContain('Table "users" {');
@@ -605,8 +602,9 @@ describe("pgGenerate with RQBv2 (defineRelations)", () => {
     );
   });
 
-  it("should work with v0 relations() syntax on v1 runtime", async () => {
-    // This test ensures backward compatibility: v0 schema with v1 drizzle-orm
+  it("should not detect v0 relations() without source file", async () => {
+    // v0 relations() requires source file for AST parsing
+    // Without source, auto-detection cannot find v0 relations
     const users = pgTable("users", {
       id: serial("id").primaryKey(),
       name: text("name"),
@@ -625,18 +623,16 @@ describe("pgGenerate with RQBv2 (defineRelations)", () => {
       }),
     }));
 
-    // Use the schema with v0-style relations on v1 runtime
-    // Since there's no AST parsing (no source file), it should still work via runtime
+    // Use the schema with v0-style relations but no source file
     const dbml = pgGenerate({
       schema: { users, posts, postsRelations },
-      relational: true,
     });
 
     // Tables should be generated
     expect(dbml).toContain('Table "users" {');
     expect(dbml).toContain('Table "posts" {');
-    // Note: Without source file, v0 relations cannot generate refs from runtime
-    // This is expected behavior - AST parsing is required for v0 relations
+    // Without source file, v0 relations cannot be detected - no Ref generated
+    expect(dbml).not.toContain("Ref:");
   });
 });
 
@@ -1063,7 +1059,6 @@ export const postsRelations = relations(posts, ({ one }) => ({
 
     const generator = new PgGenerator({
       schema: { users, posts, postsRelations },
-      relational: true,
       source: filePath,
     });
     const schema = generator.toIntermediateSchema();
@@ -1134,7 +1129,6 @@ export const profilesRelations = relations(profiles, ({ one }) => ({
 
     const generator = new PgGenerator({
       schema: { users, profiles, usersRelations, profilesRelations },
-      relational: true,
       source: filePath,
     });
     const schema = generator.toIntermediateSchema();
@@ -1178,7 +1172,6 @@ export const profilesRelations = relations(profiles, ({ one }) => ({
         usersRelEntry: rqbv2Relations.users,
         postsRelEntry: rqbv2Relations.posts,
       },
-      relational: true,
     });
     const schema = generator.toIntermediateSchema();
 

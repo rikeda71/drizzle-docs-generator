@@ -28,8 +28,8 @@ import {
 setupIntegrationTest();
 
 describe("MySQL v0 (relations())", () => {
-  it("should generate DBML and relations with -r flag", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V0, "mysql", { relational: true });
+  it("should auto-detect relations() and generate DBML with relations", async () => {
+    const result = await runGenerate(MYSQL_SCHEMA_V0, "mysql");
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -99,8 +99,8 @@ describe("MySQL v1 (defineRelations())", () => {
     expect(result.stdout).not.toContain('"users"');
   });
 
-  it("should generate relations with -r flag using defineRelations", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { relational: true });
+  it("should auto-detect defineRelations() and generate relations", async () => {
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql");
 
     expect(result.exitCode).toBe(0);
     expect(countRefs(result.stdout)).toBeGreaterThan(0);

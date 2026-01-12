@@ -173,7 +173,9 @@ describe("mysqlGenerate with relations", () => {
     rmSync(RELATIONS_TEST_DIR, { recursive: true, force: true });
   });
 
-  it("should generate references from relations when relational option is true", () => {
+  it("should auto-detect v1 defineRelations() and generate references", async () => {
+    const { defineRelations } = await import("drizzle-orm");
+
     const users = mysqlTable("users", {
       id: serial("id").primaryKey(),
       name: text("name"),
@@ -185,24 +187,26 @@ describe("mysqlGenerate with relations", () => {
       authorId: int("author_id").notNull(),
     });
 
-    const usersRelations = relations(users, ({ many }) => ({
-      posts: many(posts),
-    }));
-
-    const postsRelations = relations(posts, ({ one }) => ({
-      author: one(users, {
-        fields: [posts.authorId],
-        references: [users.id],
-      }),
+    const schema = { users, posts };
+    const rqbv2Relations = defineRelations(schema, (r) => ({
+      users: {
+        posts: r.many.posts(),
+      },
+      posts: {
+        author: r.one.users({
+          from: r.posts.authorId,
+          to: r.users.id,
+        }),
+      },
     }));
 
     const dbml = mysqlGenerate({
-      schema: { users, posts, usersRelations, postsRelations },
-      relational: true,
+      schema: { ...schema, rqbv2Relations },
     });
 
     expect(dbml).toContain("Table `users` {");
     expect(dbml).toContain("Table `posts` {");
+    expect(dbml).toContain("Ref: `posts`.`author_id` > `users`.`id`");
   });
 
   it("should generate Ref from relations() when sourceFile is provided", () => {
@@ -259,7 +263,6 @@ export const postsRelations = relations(posts, ({ one }) => ({
 
     const dbml = mysqlGenerate({
       schema: { users, posts, usersRelations, postsRelations },
-      relational: true,
       source: filePath,
     });
 
@@ -330,7 +333,6 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 
     const dbml = mysqlGenerate({
       schema: { users, posts, comments, commentsRelations },
-      relational: true,
       source: filePath,
     });
 
@@ -374,7 +376,6 @@ export const usersRelations = relations(users, ({ many }) => ({
 
     const dbml = mysqlGenerate({
       schema: { users, posts, usersRelations },
-      relational: true,
       source: filePath,
     });
 
@@ -440,7 +441,6 @@ export const profilesRelations = relations(profiles, ({ one }) => ({
 
     const dbml = mysqlGenerate({
       schema: { users, profiles, usersRelations, profilesRelations },
-      relational: true,
       source: filePath,
     });
 
