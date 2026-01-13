@@ -11,7 +11,7 @@ Drizzle ORM スキーマから DBML と Markdown ドキュメントを生成す�
 - **JSDoc コメント**: 自動的に DBML の Note 句に変換
 - **リレーション対応**: `relations()` または `defineRelations()` から参照を生成
 - **Watch モード**: ファイル変更時に自動再生成
-- **複数の出力形式**: DBML (デフォルト) および ER 図付き Markdown
+- **複数の出力形式**: Markdown (デフォルト) および ER 図付き DBML
 
 [English README](./README.md)
 
@@ -41,33 +41,33 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql
 
 ## 使い方
 
-### DBML 出力 (デフォルト)
-
-```bash
-# 基本 - 単一ファイル
-drizzle-docs generate ./src/db/schema.ts -d postgresql
-
-# ディレクトリ - ディレクトリ内のすべてのスキーマファイルをインポート
-drizzle-docs generate ./src/db/schema/ -d postgresql
-
-# ファイル出力
-drizzle-docs generate ./src/db/schema.ts -d postgresql -o schema.dbml
-
-# watch モード
-drizzle-docs generate ./src/db/schema.ts -d postgresql -w
-```
-
-### Markdown 出力
+### Markdown 出力 (デフォルト)
 
 ```bash
 # Markdown 出力 (ER 図付き複数ファイル)
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown -o ./docs
+drizzle-docs generate ./src/db/schema.ts -d postgresql -o ./docs
 
 # Markdown 出力 (単一ファイル)
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --single-file -o schema.md
+drizzle-docs generate ./src/db/schema.ts -d postgresql --single-file -o schema.md
 
 # ER 図なしの Markdown
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --no-er-diagram -o ./docs
+drizzle-docs generate ./src/db/schema.ts -d postgresql --no-er-diagram -o ./docs
+```
+
+### DBML 出力
+
+```bash
+# 基本 - 単一ファイル
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml
+
+# ディレクトリ - ディレクトリ内のすべてのスキーマファイルをインポート
+drizzle-docs generate ./src/db/schema/ -d postgresql -f dbml
+
+# ファイル出力
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -o schema.dbml
+
+# watch モード
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -w
 ```
 
 ### オプション
@@ -76,7 +76,7 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --no-er-diagr
 | ------------------------- | ----------------------------------------------------- |
 | `-o, --output <path>`     | 出力ファイルまたはディレクトリパス                    |
 | `-d, --dialect <dialect>` | DB 種別: `postgresql` (デフォルト), `mysql`, `sqlite` |
-| `-f, --format <format>`   | 出力形式: `dbml` (デフォルト), `markdown`             |
+| `-f, --format <format>`   | 出力形式: `markdown` (デフォルト), `dbml`             |
 | `-w, --watch`             | ファイル変更時に自動再生成                            |
 | `--single-file`           | Markdown を単一ファイルで出力 (markdown のみ)         |
 | `--no-er-diagram`         | ER 図を Markdown 出力から除外                         |

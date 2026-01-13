@@ -11,7 +11,7 @@ CLI tool to generate DBML and Markdown documentation from Drizzle ORM schemas. E
 - **JSDoc Comments**: Automatically extracts and converts to DBML Notes
 - **Relations Support**: Generate refs from `relations()` or `defineRelations()`
 - **Watch Mode**: Auto-regenerate on file changes
-- **Multiple Output Formats**: DBML (default) and Markdown with ER diagrams
+- **Multiple Output Formats**: Markdown (default) and DBML with ER diagrams
 
 [日本語版READMEはこちら](./README.ja.md)
 
@@ -41,33 +41,33 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql
 
 ## Usage
 
-### DBML Output (Default)
-
-```bash
-# Basic - single file
-drizzle-docs generate ./src/db/schema.ts -d postgresql
-
-# Directory - import all schema files from directory
-drizzle-docs generate ./src/db/schema/ -d postgresql
-
-# Output to file
-drizzle-docs generate ./src/db/schema.ts -d postgresql -o schema.dbml
-
-# Watch mode
-drizzle-docs generate ./src/db/schema.ts -d postgresql -w
-```
-
-### Markdown Output
+### Markdown Output (Default)
 
 ```bash
 # Markdown output (multiple files with ER diagram)
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown -o ./docs
+drizzle-docs generate ./src/db/schema.ts -d postgresql -o ./docs
 
 # Markdown output (single file)
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --single-file -o schema.md
+drizzle-docs generate ./src/db/schema.ts -d postgresql --single-file -o schema.md
 
 # Markdown without ER diagram
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --no-er-diagram -o ./docs
+drizzle-docs generate ./src/db/schema.ts -d postgresql --no-er-diagram -o ./docs
+```
+
+### DBML Output
+
+```bash
+# Basic - single file
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml
+
+# Directory - import all schema files from directory
+drizzle-docs generate ./src/db/schema/ -d postgresql -f dbml
+
+# Output to file
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -o schema.dbml
+
+# Watch mode
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -w
 ```
 
 ### Options
@@ -76,7 +76,7 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --no-er-diagr
 | ------------------------- | --------------------------------------------------- |
 | `-o, --output <path>`     | Output file or directory path                       |
 | `-d, --dialect <dialect>` | Database: `postgresql` (default), `mysql`, `sqlite` |
-| `-f, --format <format>`   | Output format: `dbml` (default), `markdown`         |
+| `-f, --format <format>`   | Output format: `markdown` (default), `dbml`         |
 | `-w, --watch`             | Regenerate on file changes                          |
 | `--single-file`           | Output Markdown as a single file (markdown only)    |
 | `--no-er-diagram`         | Exclude ER diagram from Markdown output             |

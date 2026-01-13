@@ -366,7 +366,7 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
         }
       }
     } else {
-      // Generate DBML format (default)
+      // Generate DBML format
       const dbml = generateDbmlOutput(mergedSchema, schemaPaths, options);
 
       if (options.output) {
@@ -444,7 +444,7 @@ program
   .argument("<schema>", "Path to Drizzle schema file or directory")
   .option("-o, --output <path>", "Output file or directory path")
   .option("-d, --dialect <dialect>", "Database dialect (postgresql, mysql, sqlite)", "postgresql")
-  .option("-f, --format <format>", "Output format (dbml, markdown)", "dbml")
+  .option("-f, --format <format>", "Output format (dbml, markdown)", "markdown")
   .option("-w, --watch", "Watch for file changes and regenerate")
   .option("--single-file", "Output Markdown as a single file (for markdown format)")
   .option("--no-er-diagram", "Exclude ER diagram from Markdown output")
