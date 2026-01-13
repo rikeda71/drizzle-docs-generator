@@ -41,36 +41,60 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql
 
 ## 使い方
 
-### Markdown 出力 (デフォルト)
+### 基本的な使用方法
 
 ```bash
-# Markdown 出力 (ER 図付き複数ファイル)
+# Markdown 出力 (デフォルト)
 drizzle-docs generate ./src/db/schema.ts -d postgresql -o ./docs
 
-# Markdown 出力 (単一ファイル)
+# DBML 出力
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -o schema.dbml
+```
+
+### 出力形式のオプション
+
+#### Markdown 形式 (デフォルト)
+
+デフォルトの出力形式は **Markdown** で、ER 図付きの複数ファイルを生成します。
+
+**Markdown 形式固有のオプション:**
+
+| オプション          | 説明                                     |
+| ------------------- | ---------------------------------------- |
+| `--single-file`     | 複数ファイルではなく単一ファイルで出力   |
+| `--no-er-diagram`   | 出力から ER 図を除外                     |
+
+**例:**
+
+```bash
+# ER 図付き複数ファイル (デフォルト)
+drizzle-docs generate ./src/db/schema.ts -d postgresql -o ./docs
+
+# 単一ファイル Markdown
 drizzle-docs generate ./src/db/schema.ts -d postgresql --single-file -o schema.md
 
-# ER 図なしの Markdown
+# ER 図なしの複数ファイル
 drizzle-docs generate ./src/db/schema.ts -d postgresql --no-er-diagram -o ./docs
 ```
 
-### DBML 出力
+#### DBML 形式
+
+`-f dbml` または `--format dbml` オプションを使用して DBML 形式を生成します。
+
+**例:**
 
 ```bash
-# 基本 - 単一ファイル
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml
-
-# ディレクトリ - ディレクトリ内のすべてのスキーマファイルをインポート
-drizzle-docs generate ./src/db/schema/ -d postgresql -f dbml
-
-# ファイル出力
+# ファイルに出力
 drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -o schema.dbml
 
-# watch モード
+# ディレクトリ - ディレクトリ内のすべてのスキーマファイルをインポート
+drizzle-docs generate ./src/db/schema/ -d postgresql -f dbml -o schema.dbml
+
+# Watch モード
 drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -w
 ```
 
-### オプション
+#### 共通オプション
 
 | オプション                | 説明                                                  |
 | ------------------------- | ----------------------------------------------------- |
@@ -78,8 +102,6 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -w
 | `-d, --dialect <dialect>` | DB 種別: `postgresql` (デフォルト), `mysql`, `sqlite` |
 | `-f, --format <format>`   | 出力形式: `markdown` (デフォルト), `dbml`             |
 | `-w, --watch`             | ファイル変更時に自動再生成                            |
-| `--single-file`           | Markdown を単一ファイルで出力 (markdown のみ)         |
-| `--no-er-diagram`         | ER 図を Markdown 出力から除外                         |
 | `--force`                 | 確認なしで既存ファイルを上書き                        |
 
 ### リレーション検出
