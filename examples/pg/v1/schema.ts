@@ -133,41 +133,50 @@ export const postTags = pgTable(
 );
 
 // v1 Relations using defineRelations() API
+// First create a schema object with all table definitions
+const schema = {
+  users,
+  posts,
+  comments,
+  tags,
+  postTags,
+};
 
-export const schema = defineRelations({
-  users: (r) => ({
-    posts: r.many(posts),
-    comments: r.many(comments),
-  }),
-  posts: (r) => ({
-    author: r.one(users, {
-      fields: [posts.authorId],
-      references: [users.id],
+// Then define relations using the modern defineRelations() API
+export const relationsConfig = defineRelations(schema, (r) => ({
+  users: {
+    posts: r.many.posts(),
+    comments: r.many.comments(),
+  },
+  posts: {
+    author: r.one.users({
+      from: r.posts.authorId,
+      to: r.users.id,
     }),
-    comments: r.many(comments),
-    postTags: r.many(postTags),
-  }),
-  comments: (r) => ({
-    post: r.one(posts, {
-      fields: [comments.postId],
-      references: [posts.id],
+    comments: r.many.comments(),
+    postTags: r.many.postTags(),
+  },
+  comments: {
+    post: r.one.posts({
+      from: r.comments.postId,
+      to: r.posts.id,
     }),
-    author: r.one(users, {
-      fields: [comments.authorId],
-      references: [users.id],
+    author: r.one.users({
+      from: r.comments.authorId,
+      to: r.users.id,
     }),
-  }),
-  tags: (r) => ({
-    postTags: r.many(postTags),
-  }),
-  postTags: (r) => ({
-    post: r.one(posts, {
-      fields: [postTags.postId],
-      references: [posts.id],
+  },
+  tags: {
+    postTags: r.many.postTags(),
+  },
+  postTags: {
+    post: r.one.posts({
+      from: r.postTags.postId,
+      to: r.posts.id,
     }),
-    tag: r.one(tags, {
-      fields: [postTags.tagId],
-      references: [tags.id],
+    tag: r.one.tags({
+      from: r.postTags.tagId,
+      to: r.tags.id,
     }),
-  }),
-});
+  },
+}));

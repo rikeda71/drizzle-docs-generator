@@ -14,11 +14,11 @@
 
 ```mermaid
 erDiagram
+    posts }o--|| users : "author_id"
     comments }o--|| posts : "post_id"
     comments }o--|| users : "author_id"
     post_tags }o--|| posts : "post_id"
     post_tags }o--|| tags : "tag_id"
-    posts }o--|| users : "author_id"
 
     comments {
         int id PK "Auto-generated unique identifier"
