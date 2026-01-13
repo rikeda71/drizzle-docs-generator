@@ -165,11 +165,17 @@ export class DbmlFormatter implements OutputFormatter {
    * - Strings: already wrapped with single quotes (e.g., "'user'")
    * - Numbers/booleans: as-is (e.g., "true", "42")
    * - null: "null"
+   *
+   * DBML syntax requires:
+   * - SQL functions/expressions: wrapped in backticks (e.g., `now()`)
+   * - Strings: single quotes (e.g., 'user')
+   * - Numbers/booleans/null: as-is
    */
   private formatDefaultValue(value: string): string {
     // If it looks like a SQL expression (contains parentheses or is a known function)
+    // Wrap in backticks for dbdiagram.io compatibility
     if (value.includes("(") || value.includes("::") || this.isKnownSqlFunction(value)) {
-      return value;
+      return `\`${value}\``;
     }
     // If it's null
     if (value === "null" || value === "NULL") {
