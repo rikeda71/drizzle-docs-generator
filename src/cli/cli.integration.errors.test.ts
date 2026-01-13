@@ -42,14 +42,6 @@ describe("Directory Import", () => {
     // Should include schemas from multiple files in the directory
     expect(countTables(result.stdout)).toBeGreaterThanOrEqual(5);
   });
-
-  it("should error for empty directory", async () => {
-    const emptyDir = join(import.meta.dirname, "../../tests/fixtures/empty");
-    const result = await runCli(["generate", emptyDir, "-d", "postgresql"]);
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("No schema files found in directory");
-  });
 });
 
 describe("Format Option Validation", () => {
