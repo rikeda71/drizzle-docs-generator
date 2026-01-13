@@ -41,7 +41,7 @@
     "dev": "vite build --watch",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration": "rm -rf src/cli/__integration_test_output__ && vitest run --config vitest.integration.config.ts",
     "lint": "oxlint",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
