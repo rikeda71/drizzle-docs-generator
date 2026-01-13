@@ -18,24 +18,26 @@ Drizzle ORM スキーマから DBML と Markdown ドキュメントを生成す�
 
 ## インストール
 
-### グローバルインストール（CLI 使用を想定）
+### ローカルインストール（推奨）
+
+```bash
+# 開発依存関係としてインストール
+npm install --save-dev drizzle-docs-generator
+# or
+pnpm add -D drizzle-docs-generator
+
+# npx で実行
+npx drizzle-docs generate ./src/db/schema.ts -d postgresql
+```
+
+### グローバルインストール
 
 ```bash
 npm install -g drizzle-docs-generator
 # or
 pnpm add -g drizzle-docs-generator
-```
 
-### ローカルインストール または npx（一度だけ実行する場合）
-
-```bash
-# プロジェクトにローカルインストール
-npm install drizzle-docs-generator
-# or
-pnpm add drizzle-docs-generator
-
-# インストールせず直接実行
-npx drizzle-docs-generator generate ./src/db/schema.ts -d postgresql
+drizzle-docs generate ./src/db/schema.ts -d postgresql
 ```
 
 ## 使い方

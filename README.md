@@ -18,24 +18,26 @@ CLI tool to generate DBML and Markdown documentation from Drizzle ORM schemas. E
 
 ## Install
 
-### Global Install (recommended for CLI usage)
+### Local Install (recommended)
+
+```bash
+# As a dev dependency
+npm install --save-dev drizzle-docs-generator
+# or
+pnpm add -D drizzle-docs-generator
+
+# Then use with npx
+npx drizzle-docs generate ./src/db/schema.ts -d postgresql
+```
+
+### Global Install
 
 ```bash
 npm install -g drizzle-docs-generator
 # or
 pnpm add -g drizzle-docs-generator
-```
 
-### Local Install or npx (one-off usage)
-
-```bash
-# Local install in your project
-npm install drizzle-docs-generator
-# or
-pnpm add drizzle-docs-generator
-
-# Run directly without installing
-npx drizzle-docs-generator generate ./src/db/schema.ts -d postgresql
+drizzle-docs generate ./src/db/schema.ts -d postgresql
 ```
 
 ## Usage
