@@ -174,7 +174,7 @@ export class DbmlFormatter implements OutputFormatter {
   private formatDefaultValue(value: string): string {
     // If it looks like a SQL expression (contains parentheses or is a known function)
     if (value.includes("(") || value.includes("::") || this.isKnownSqlFunction(value)) {
-      return `\`${value}\``;
+      return value;
     }
     // If it's null
     if (value === "null" || value === "NULL") {
@@ -307,16 +307,11 @@ export class DbmlFormatter implements OutputFormatter {
   }
 
   /**
-   * Escape a name for DBML based on database type
+   * Escape a name for DBML
    *
-   * - PostgreSQL/SQLite: Use double quotes ("name")
-   * - MySQL: Use backticks (`name`)
+   * DBML uses double quotes for all database types
    */
   private escapeName(name: string): string {
-    if (this.databaseType === "mysql") {
-      return `\`${name}\``;
-    }
-    // PostgreSQL and SQLite use double quotes
     return `"${name}"`;
   }
 

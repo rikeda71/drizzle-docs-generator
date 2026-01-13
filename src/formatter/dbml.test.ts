@@ -156,7 +156,7 @@ describe("DbmlFormatter", () => {
 
       expect(dbml).toContain("default: true");
       expect(dbml).toContain("default: 'user'");
-      expect(dbml).toContain("default: `now()`");
+      expect(dbml).toContain("default: now()");
     });
 
     it("should format empty schema", () => {

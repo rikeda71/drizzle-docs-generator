@@ -129,7 +129,6 @@ export const postTags = sqliteTable(
 );
 
 // v1 Relations using defineRelations() API
-// First create a schema object with all table definitions
 const schema = {
   users,
   posts,
@@ -138,7 +137,6 @@ const schema = {
   postTags,
 };
 
-// Then define relations using the modern defineRelations() API
 export const relationsConfig = defineRelations(schema, (r) => ({
   users: {
     posts: r.many.posts(),

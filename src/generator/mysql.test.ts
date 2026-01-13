@@ -27,10 +27,10 @@ describe("mysqlGenerate", () => {
 
     const dbml = mysqlGenerate({ schema: { users } });
 
-    expect(dbml).toContain("Table `users` {");
-    expect(dbml).toContain("`id` serial [primary key, not null, increment]");
-    expect(dbml).toContain("`name` text [not null]");
-    expect(dbml).toContain("`email` varchar(255) [unique]");
+    expect(dbml).toContain("Table \"users\" {");
+    expect(dbml).toContain("\"id\" serial [primary key, not null, increment]");
+    expect(dbml).toContain("\"name\" text [not null]");
+    expect(dbml).toContain("\"email\" varchar(255) [unique]");
     expect(dbml).toContain("}");
   });
 
@@ -48,9 +48,9 @@ describe("mysqlGenerate", () => {
 
     const dbml = mysqlGenerate({ schema: { users, posts } });
 
-    expect(dbml).toContain("Table `users` {");
-    expect(dbml).toContain("Table `posts` {");
-    expect(dbml).toContain("`title` text [not null]");
+    expect(dbml).toContain("Table \"users\" {");
+    expect(dbml).toContain("Table \"posts\" {");
+    expect(dbml).toContain("\"title\" text [not null]");
   });
 
   it("should handle columns with default values", () => {
@@ -78,9 +78,9 @@ describe("mysqlGenerate", () => {
 
     const dbml = mysqlGenerate({ schema: { users } });
 
-    expect(dbml).toContain("`users`");
-    expect(dbml).toContain("`id`");
-    expect(dbml).not.toContain('"users"');
+    expect(dbml).toContain("\"users\"");
+    expect(dbml).toContain("\"id\"");
+    expect(dbml).not.toContain("`users`");
   });
 
   it("should handle composite primary keys", () => {
@@ -95,7 +95,7 @@ describe("mysqlGenerate", () => {
 
     const dbml = mysqlGenerate({ schema: { userRoles } });
 
-    expect(dbml).toContain("Table `user_roles` {");
+    expect(dbml).toContain("Table \"user_roles\" {");
     expect(dbml).toContain("indexes {");
     expect(dbml).toContain("[pk]");
   });
@@ -123,8 +123,8 @@ describe("mysqlGenerate", () => {
     const dbml = mysqlGenerate({ schema: { users, posts } });
 
     expect(dbml).toContain("Ref:");
-    expect(dbml).toContain("`posts`.`author_id`");
-    expect(dbml).toContain("`users`.`id`");
+    expect(dbml).toContain("\"posts\".\"author_id\"");
+    expect(dbml).toContain("\"users\".\"id\"");
   });
 
   it("should handle unique constraints", () => {
@@ -158,7 +158,7 @@ describe("mysqlGenerate", () => {
     const dbml = mysqlGenerate({ schema: { users } });
 
     expect(dbml).toContain("indexes {");
-    expect(dbml).toContain("`email`");
+    expect(dbml).toContain("\"email\"");
   });
 });
 
@@ -204,9 +204,9 @@ describe("mysqlGenerate with relations", () => {
       schema: { ...schema, rqbv2Relations },
     });
 
-    expect(dbml).toContain("Table `users` {");
-    expect(dbml).toContain("Table `posts` {");
-    expect(dbml).toContain("Ref: `posts`.`author_id` > `users`.`id`");
+    expect(dbml).toContain("Table \"users\" {");
+    expect(dbml).toContain("Table \"posts\" {");
+    expect(dbml).toContain("Ref: \"posts\".\"author_id\" > \"users\".\"id\"");
   });
 
   it("should generate Ref from relations() when sourceFile is provided", () => {
@@ -266,11 +266,11 @@ export const postsRelations = relations(posts, ({ one }) => ({
       source: filePath,
     });
 
-    expect(dbml).toContain("Table `users` {");
-    expect(dbml).toContain("Table `posts` {");
+    expect(dbml).toContain("Table \"users\" {");
+    expect(dbml).toContain("Table \"posts\" {");
     expect(dbml).toContain("Ref:");
-    expect(dbml).toContain("`posts`.`author_id`");
-    expect(dbml).toContain("`users`.`id`");
+    expect(dbml).toContain("\"posts\".\"author_id\"");
+    expect(dbml).toContain("\"users\".\"id\"");
   });
 
   it("should generate multiple Refs for multiple one() relations", () => {
@@ -336,8 +336,8 @@ export const commentsRelations = relations(comments, ({ one }) => ({
       source: filePath,
     });
 
-    expect(dbml).toContain("Ref: `comments`.`post_id` > `posts`.`id`");
-    expect(dbml).toContain("Ref: `comments`.`author_id` > `users`.`id`");
+    expect(dbml).toContain("Ref: \"comments\".\"post_id\" > \"posts\".\"id\"");
+    expect(dbml).toContain("Ref: \"comments\".\"author_id\" > \"users\".\"id\"");
   });
 
   it("should not generate Ref for many() without corresponding one()", () => {
@@ -445,9 +445,9 @@ export const profilesRelations = relations(profiles, ({ one }) => ({
     });
 
     // Should use "-" for one-to-one relationship
-    expect(dbml).toContain("Ref: `users`.`profile_id` - `profiles`.`id`");
+    expect(dbml).toContain("Ref: \"users\".\"profile_id\" - \"profiles\".\"id\"");
     // Should NOT have duplicate ref
-    expect(dbml).not.toContain("Ref: `profiles`.`id` - `users`.`profile_id`");
+    expect(dbml).not.toContain("Ref: \"profiles\".\"id\" - \"users\".\"profile_id\"");
   });
 });
 
