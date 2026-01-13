@@ -47,3 +47,27 @@ jobs:
         run: |
           pnpm generate:examples
           git diff --exit-code examples/ || (echo "Examples are out of date. Run 'pnpm generate:examples' and commit the changes." && exit 1)
+
+      - name: Verify v0 and v1 examples have differences
+        run: |
+          # Verify that v0 and v1 generated files exist and are different
+          for db in pg mysql sqlite; do
+            # Check that both v0 and v1 DBML files exist
+            if [ ! -f "examples/$db/v0/schema.dbml" ] || [ ! -f "examples/$db/v1/schema.dbml" ]; then
+              echo "Error: Missing DBML files for $db"
+              exit 1
+            fi
+
+            # Check that v0 and v1 DBML files are different (should have different relation definitions)
+            if diff -q "examples/$db/v0/schema.dbml" "examples/$db/v1/schema.dbml" > /dev/null; then
+              echo "Error: v0 and v1 DBML files for $db should have differences"
+              exit 1
+            fi
+
+            # Check that both v0 and v1 markdown READMEs exist
+            if [ ! -f "examples/$db/v0/markdown/README.md" ] || [ ! -f "examples/$db/v1/markdown/README.md" ]; then
+              echo "Error: Missing Markdown README files for $db"
+              exit 1
+            fi
+          done
+          echo "✓ All v0/v1 example pairs exist and have expected differences"
