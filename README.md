@@ -59,10 +59,10 @@ The default output format is **Markdown**, which generates multiple files with a
 
 **Options specific to Markdown format:**
 
-| Option              | Description                                    |
-| ------------------- | ---------------------------------------------- |
-| `--single-file`     | Output as a single file instead of multiple    |
-| `--no-er-diagram`   | Exclude ER diagram from output                 |
+| Option            | Description                                 |
+| ----------------- | ------------------------------------------- |
+| `--single-file`   | Output as a single file instead of multiple |
+| `--no-er-diagram` | Exclude ER diagram from output              |
 
 **Examples:**
 
