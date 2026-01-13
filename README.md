@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/drizzle-docs-generator.svg)](https://www.npmjs.com/package/drizzle-docs-generator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-CLI tool to generate DBML from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
+CLI tool to generate DBML and Markdown documentation from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
 
 **Features:**
 
@@ -18,10 +18,24 @@ CLI tool to generate DBML from Drizzle ORM schemas. Extracts JSDoc comments and 
 
 ## Install
 
+### Global Install (recommended for CLI usage)
+
 ```bash
 npm install -g drizzle-docs-generator
 # or
 pnpm add -g drizzle-docs-generator
+```
+
+### Local Install or npx (one-off usage)
+
+```bash
+# Local install in your project
+npm install drizzle-docs-generator
+# or
+pnpm add drizzle-docs-generator
+
+# Run directly without installing
+npx drizzle-docs-generator generate ./src/db/schema.ts -d postgresql
 ```
 
 ## Usage
@@ -37,9 +51,6 @@ drizzle-docs generate ./src/db/schema/ -d postgresql
 
 # Output to file
 drizzle-docs generate ./src/db/schema.ts -d postgresql -o schema.dbml
-
-# Use relations() definitions
-drizzle-docs generate ./src/db/schema.ts -d postgresql -r
 
 # Watch mode
 drizzle-docs generate ./src/db/schema.ts -d postgresql -w

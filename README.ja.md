@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/drizzle-docs-generator.svg)](https://www.npmjs.com/package/drizzle-docs-generator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Drizzle ORM スキーマから DBML を生成する CLI。JSDoc コメントを Note 句として出力できる。
+Drizzle ORM スキーマから DBML と Markdown ドキュメントを生成する CLI。JSDoc コメントを Note 句として出力できる。
 
 **機能:**
 
@@ -18,10 +18,24 @@ Drizzle ORM スキーマから DBML を生成する CLI。JSDoc コメントを 
 
 ## インストール
 
+### グローバルインストール（CLI 使用を想定）
+
 ```bash
 npm install -g drizzle-docs-generator
 # or
 pnpm add -g drizzle-docs-generator
+```
+
+### ローカルインストール または npx（一度だけ実行する場合）
+
+```bash
+# プロジェクトにローカルインストール
+npm install drizzle-docs-generator
+# or
+pnpm add drizzle-docs-generator
+
+# インストールせず直接実行
+npx drizzle-docs-generator generate ./src/db/schema.ts -d postgresql
 ```
 
 ## 使い方
@@ -37,9 +51,6 @@ drizzle-docs generate ./src/db/schema/ -d postgresql
 
 # ファイル出力
 drizzle-docs generate ./src/db/schema.ts -d postgresql -o schema.dbml
-
-# relations() を使う
-drizzle-docs generate ./src/db/schema.ts -d postgresql -r
 
 # watch モード
 drizzle-docs generate ./src/db/schema.ts -d postgresql -w
