@@ -6,7 +6,6 @@ import type {
   ConstraintDefinition,
   RelationDefinition,
   EnumDefinition,
-  DatabaseType,
 } from "../types";
 import type { OutputFormatter, FormatterOptions } from "./types";
 import { DbmlBuilder } from "./dbml-builder";
@@ -28,7 +27,6 @@ const DEFAULT_OPTIONS: Required<FormatterOptions> = {
  */
 export class DbmlFormatter implements OutputFormatter {
   private options: Required<FormatterOptions>;
-  private databaseType: DatabaseType = "postgresql";
 
   /**
    * Create a new DbmlFormatter
@@ -47,9 +45,6 @@ export class DbmlFormatter implements OutputFormatter {
    */
   format(schema: IntermediateSchema): string {
     const dbml = new DbmlBuilder();
-
-    // Store database type for name escaping
-    this.databaseType = schema.databaseType;
 
     // Generate enums (PostgreSQL specific)
     for (const enumDef of schema.enums) {
