@@ -238,6 +238,8 @@ function getJsDocComment(node: ts.Node, sourceFile: ts.SourceFile): string | und
 
 /**
  * Parse JSDoc comment text to extract the description
+ *
+ * Preserves newlines in the output for proper formatting in DBML and Markdown.
  */
 function parseJsDocComment(commentText: string): string {
   // Remove /** and */
@@ -259,6 +261,16 @@ function parseJsDocComment(commentText: string): string {
     contentLines.push(line);
   }
 
-  // Join and trim
-  return contentLines.join(" ").trim();
+  // Remove trailing empty lines
+  while (contentLines.length > 0 && contentLines[contentLines.length - 1] === "") {
+    contentLines.pop();
+  }
+
+  // Remove leading empty lines
+  while (contentLines.length > 0 && contentLines[0] === "") {
+    contentLines.shift();
+  }
+
+  // Join with newlines to preserve formatting
+  return contentLines.join("\n").trim();
 }

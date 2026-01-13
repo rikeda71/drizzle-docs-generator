@@ -99,7 +99,7 @@ export const users = pgTable("users", {
       const comments = extractComments(filePath);
 
       expect(comments.tables.users.comment).toBe(
-        "This table stores user account information. It includes basic profile data.",
+        "This table stores user account information.\nIt includes basic profile data.",
       );
     });
 
@@ -121,7 +121,7 @@ export const users = pgTable("users", {
       const comments = extractComments(filePath);
 
       expect(comments.tables.users.columns.id?.comment).toBe(
-        "Unique identifier for the user. Auto-incremented.",
+        "Unique identifier for the user.\nAuto-incremented.",
       );
     });
 
