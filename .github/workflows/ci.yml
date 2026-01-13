@@ -48,9 +48,9 @@ jobs:
           pnpm generate:examples
           git diff --exit-code examples/ || (echo "Examples are out of date. Run 'pnpm generate:examples' and commit the changes." && exit 1)
 
-      - name: Verify v0 and v1 examples have differences
+      - name: Verify v0 and v1 examples consistency
         run: |
-          # Verify that v0 and v1 generated files exist and are different
+          # Verify that v0 and v1 generated files exist and produce identical DBML output
           for db in pg mysql sqlite; do
             # Check that both v0 and v1 DBML files exist
             if [ ! -f "examples/$db/v0/schema.dbml" ] || [ ! -f "examples/$db/v1/schema.dbml" ]; then
@@ -58,9 +58,11 @@ jobs:
               exit 1
             fi
 
-            # Check that v0 and v1 DBML files are different (should have different relation definitions)
-            if diff -q "examples/$db/v0/schema.dbml" "examples/$db/v1/schema.dbml" > /dev/null; then
-              echo "Error: v0 and v1 DBML files for $db should have differences"
+            # Check that v0 and v1 DBML files are identical (same database schema despite different APIs)
+            if ! diff -q "examples/$db/v0/schema.dbml" "examples/$db/v1/schema.dbml" > /dev/null; then
+              echo "Error: v0 and v1 DBML files for $db should be identical (same database schema)"
+              echo "Difference found:"
+              diff "examples/$db/v0/schema.dbml" "examples/$db/v1/schema.dbml"
               exit 1
             fi
 
@@ -70,4 +72,4 @@ jobs:
               exit 1
             fi
           done
-          echo "✓ All v0/v1 example pairs exist and have expected differences"
+          echo "✓ All v0/v1 example pairs exist and produce identical DBML output"

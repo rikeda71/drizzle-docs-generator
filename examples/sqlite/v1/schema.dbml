@@ -3,7 +3,7 @@ Table "comments" {
   "body" text [not null, note: 'Comment text']
   "post_id" integer [not null, note: 'ID of the post this comment belongs to']
   "author_id" integer [not null, note: 'ID of the user who wrote the comment']
-  "created_at" integer [note: 'Timestamp when the comment was created']
+  "created_at" integer [note: 'Timestamp when the comment was created (stored as unix timestamp)']
 
   Note: 'Comments on posts'
 }
@@ -25,7 +25,7 @@ Table "posts" {
   "content" text [note: 'Post content body']
   "published" integer [default: false, note: 'Whether the post is published']
   "author_id" integer [not null, note: 'ID of the post author']
-  "created_at" integer [note: 'Timestamp when the post was created']
+  "created_at" integer [note: 'Timestamp when the post was created (stored as unix timestamp)']
 
   indexes {
     ("author_id") [name: 'posts_author_idx']

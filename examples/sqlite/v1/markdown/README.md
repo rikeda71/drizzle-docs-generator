@@ -25,7 +25,7 @@ erDiagram
         text body "Comment text"
         int post_id FK "ID of the post this comment belongs to"
         int author_id FK "ID of the user who wrote the comment"
-        int created_at "Timestamp when the comment was created"
+        int created_at "Timestamp when the comment was created (stored as unix timestamp)"
     }
     post_tags {
         int post_id FK "ID of the post"
@@ -37,7 +37,7 @@ erDiagram
         text content "Post content body"
         int published "Whether the post is published"
         int author_id FK "ID of the post author"
-        int created_at "Timestamp when the post was created"
+        int created_at "Timestamp when the post was created (stored as unix timestamp)"
     }
     tags {
         int id PK "Auto-generated unique identifier"

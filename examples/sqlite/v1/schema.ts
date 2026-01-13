@@ -53,7 +53,7 @@ export const posts = sqliteTable(
     published: integer("published", { mode: "boolean" }).default(false),
     /** ID of the post author */
     authorId: integer("author_id").notNull(),
-    /** Timestamp when the post was created */
+    /** Timestamp when the post was created (stored as unix timestamp) */
     createdAt: integer("created_at", { mode: "timestamp" }),
   },
   (table) => [
@@ -77,7 +77,7 @@ export const comments = sqliteTable(
     postId: integer("post_id").notNull(),
     /** ID of the user who wrote the comment */
     authorId: integer("author_id").notNull(),
-    /** Timestamp when the comment was created */
+    /** Timestamp when the comment was created (stored as unix timestamp) */
     createdAt: integer("created_at", { mode: "timestamp" }),
   },
   (table) => [

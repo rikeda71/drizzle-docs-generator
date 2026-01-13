@@ -13,7 +13,7 @@ Blog posts created by users
 | content | text | - | YES | - | - | Post content body |
 | published | integer | `false` | YES | - | - | Whether the post is published |
 | author_id | integer | - | NO | - | [users.id](./users.md) | ID of the post author |
-| created_at | integer | - | YES | - | - | Timestamp when the post was created |
+| created_at | integer | - | YES | - | - | Timestamp when the post was created (stored as unix timestamp) |
 
 ### Constraints
 
