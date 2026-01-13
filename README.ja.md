@@ -1,9 +1,8 @@
 # drizzle-docs-generator
 
-[![npm version](https://badge.fury.io/js/drizzle-docs-generator.svg)](https://www.npmjs.com/package/drizzle-docs-generator)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![NPM](https://nodei.co/npm/drizzle-docs-generator.svg?style=shields&data=v,d&color=brightgreen)](https://nodei.co/npm/drizzle-docs-generator/)
 
-Drizzle ORM スキーマから DBML を生成する CLI。JSDoc コメントを Note 句として出力できる。
+Drizzle ORM スキーマから DBML と Markdown ドキュメントを生成する CLI。JSDoc コメントを Note 句として出力できる。
 
 **機能:**
 
@@ -18,10 +17,26 @@ Drizzle ORM スキーマから DBML を生成する CLI。JSDoc コメントを 
 
 ## インストール
 
+### ローカルインストール（推奨）
+
+```bash
+# 開発依存関係としてインストール
+npm install --save-dev drizzle-docs-generator
+# or
+pnpm add -D drizzle-docs-generator
+
+# npx で実行
+npx drizzle-docs generate ./src/db/schema.ts -d postgresql
+```
+
+### グローバルインストール
+
 ```bash
 npm install -g drizzle-docs-generator
 # or
 pnpm add -g drizzle-docs-generator
+
+drizzle-docs generate ./src/db/schema.ts -d postgresql
 ```
 
 ## 使い方
@@ -37,9 +52,6 @@ drizzle-docs generate ./src/db/schema/ -d postgresql
 
 # ファイル出力
 drizzle-docs generate ./src/db/schema.ts -d postgresql -o schema.dbml
-
-# relations() を使う
-drizzle-docs generate ./src/db/schema.ts -d postgresql -r
 
 # watch モード
 drizzle-docs generate ./src/db/schema.ts -d postgresql -w
@@ -118,37 +130,6 @@ Table users {
 ```
 
 詳細なサンプル出力は [examples/](./examples/) を参照してください。
-
-## API
-
-```typescript
-import { pgGenerate } from "drizzle-docs-generator";
-import * as schema from "./schema";
-
-const dbml = pgGenerate({
-  schema,
-  source: "./schema.ts", // JSDoc コメントと v0 relations() 検出用
-  out: "./output.dbml", // optional
-});
-```
-
-`mysqlGenerate`, `sqliteGenerate` も同様。
-
-## 動作環境
-
-- Node.js >= 24
-- Drizzle ORM v1 beta (1.0.0-beta.10+)
-- ES Modules (ESM): プロジェクトで ESM を使用していること (`package.json` に `"type": "module"`)
-
-## 仕組み
-
-このツールは [tsx](https://github.com/privatenumber/tsx) を使用してスキーマファイルを読み込むため:
-
-✅ **拡張子なしのインポートが動作**: `import { users } from './users'`
-✅ **TypeScript ファイルを直接読み込み**: コンパイル不要
-✅ **ディレクトリインポート**: ディレクトリ内のすべてのスキーマファイルを自動読み込み
-
-スキーマファイルでは、ファイル拡張子を気にせず標準的な TypeScript のモジュール解決を使用できます。
 
 ## License
 

@@ -1,9 +1,8 @@
 # drizzle-docs-generator
 
-[![npm version](https://badge.fury.io/js/drizzle-docs-generator.svg)](https://www.npmjs.com/package/drizzle-docs-generator)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![NPM](https://nodei.co/npm/drizzle-docs-generator.svg?style=shields&data=v,d&color=brightgreen)](https://nodei.co/npm/drizzle-docs-generator/)
 
-CLI tool to generate DBML from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
+CLI tool to generate DBML and Markdown documentation from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
 
 **Features:**
 
@@ -18,10 +17,26 @@ CLI tool to generate DBML from Drizzle ORM schemas. Extracts JSDoc comments and 
 
 ## Install
 
+### Local Install (recommended)
+
+```bash
+# As a dev dependency
+npm install --save-dev drizzle-docs-generator
+# or
+pnpm add -D drizzle-docs-generator
+
+# Then use with npx
+npx drizzle-docs generate ./src/db/schema.ts -d postgresql
+```
+
+### Global Install
+
 ```bash
 npm install -g drizzle-docs-generator
 # or
 pnpm add -g drizzle-docs-generator
+
+drizzle-docs generate ./src/db/schema.ts -d postgresql
 ```
 
 ## Usage
@@ -37,9 +52,6 @@ drizzle-docs generate ./src/db/schema/ -d postgresql
 
 # Output to file
 drizzle-docs generate ./src/db/schema.ts -d postgresql -o schema.dbml
-
-# Use relations() definitions
-drizzle-docs generate ./src/db/schema.ts -d postgresql -r
 
 # Watch mode
 drizzle-docs generate ./src/db/schema.ts -d postgresql -w
@@ -118,37 +130,6 @@ Users table
 ```
 
 See [examples/](./examples/) for more detailed output samples.
-
-## API
-
-```typescript
-import { pgGenerate } from "drizzle-docs-generator";
-import * as schema from "./schema";
-
-const dbml = pgGenerate({
-  schema,
-  source: "./schema.ts", // for JSDoc comments and v0 relations() detection
-  out: "./output.dbml", // optional
-});
-```
-
-`mysqlGenerate`, `sqliteGenerate` are also available.
-
-## Requirements
-
-- Node.js >= 24
-- Drizzle ORM v1 beta (1.0.0-beta.10+)
-- ES Modules (ESM): Your project must use ESM (`"type": "module"` in package.json)
-
-## How It Works
-
-This tool uses [tsx](https://github.com/privatenumber/tsx) to load your schema files, which means:
-
-✅ **Extensionless imports work**: `import { users } from './users'`
-✅ **TypeScript files are loaded directly**: No need to compile first
-✅ **Directory imports**: Load all schema files from a directory automatically
-
-Your schema files can use standard TypeScript module resolution without worrying about file extensions.
 
 ## License
 
