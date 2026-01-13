@@ -132,37 +132,6 @@ Table users {
 
 詳細なサンプル出力は [examples/](./examples/) を参照してください。
 
-## API
-
-```typescript
-import { pgGenerate } from "drizzle-docs-generator";
-import * as schema from "./schema";
-
-const dbml = pgGenerate({
-  schema,
-  source: "./schema.ts", // JSDoc コメントと v0 relations() 検出用
-  out: "./output.dbml", // optional
-});
-```
-
-`mysqlGenerate`, `sqliteGenerate` も同様。
-
-## 動作環境
-
-- Node.js >= 24
-- Drizzle ORM v1 beta (1.0.0-beta.10+)
-- ES Modules (ESM): プロジェクトで ESM を使用していること (`package.json` に `"type": "module"`)
-
-## 仕組み
-
-このツールは [tsx](https://github.com/privatenumber/tsx) を使用してスキーマファイルを読み込むため:
-
-✅ **拡張子なしのインポートが動作**: `import { users } from './users'`
-✅ **TypeScript ファイルを直接読み込み**: コンパイル不要
-✅ **ディレクトリインポート**: ディレクトリ内のすべてのスキーマファイルを自動読み込み
-
-スキーマファイルでは、ファイル拡張子を気にせず標準的な TypeScript のモジュール解決を使用できます。
-
 ## License
 
 MIT
