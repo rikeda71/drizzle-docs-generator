@@ -11,7 +11,7 @@ Drizzle ORM スキーマから DBML と Markdown ドキュメントを生成す�
 - **JSDoc コメント**: 自動的に DBML の Note 句に変換
 - **リレーション対応**: `relations()` または `defineRelations()` から参照を生成
 - **Watch モード**: ファイル変更時に自動再生成
-- **複数の出力形式**: DBML (デフォルト) および ER 図付き Markdown
+- **複数の出力形式**: Markdown (デフォルト) および ER 図付き DBML
 
 [English README](./README.md)
 
@@ -41,45 +41,67 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql
 
 ## 使い方
 
-### DBML 出力 (デフォルト)
+### 基本的な使用方法
 
 ```bash
-# 基本 - 単一ファイル
-drizzle-docs generate ./src/db/schema.ts -d postgresql
+# Markdown 出力 (デフォルト)
+drizzle-docs generate ./src/db/schema.ts -d postgresql -o ./docs
+
+# DBML 出力
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -o schema.dbml
+```
+
+### 出力形式のオプション
+
+#### Markdown 形式 (デフォルト)
+
+デフォルトの出力形式は **Markdown** で、ER 図付きの複数ファイルを生成します。
+
+**Markdown 形式固有のオプション:**
+
+| オプション        | 説明                                   |
+| ----------------- | -------------------------------------- |
+| `--single-file`   | 複数ファイルではなく単一ファイルで出力 |
+| `--no-er-diagram` | 出力から ER 図を除外                   |
+
+**例:**
+
+```bash
+# ER 図付き複数ファイル (デフォルト)
+drizzle-docs generate ./src/db/schema.ts -d postgresql -o ./docs
+
+# 単一ファイル Markdown
+drizzle-docs generate ./src/db/schema.ts -d postgresql --single-file -o schema.md
+
+# ER 図なしの複数ファイル
+drizzle-docs generate ./src/db/schema.ts -d postgresql --no-er-diagram -o ./docs
+```
+
+#### DBML 形式
+
+`-f dbml` または `--format dbml` オプションを使用して DBML 形式を生成します。
+
+**例:**
+
+```bash
+# ファイルに出力
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -o schema.dbml
 
 # ディレクトリ - ディレクトリ内のすべてのスキーマファイルをインポート
-drizzle-docs generate ./src/db/schema/ -d postgresql
+drizzle-docs generate ./src/db/schema/ -d postgresql -f dbml -o schema.dbml
 
-# ファイル出力
-drizzle-docs generate ./src/db/schema.ts -d postgresql -o schema.dbml
-
-# watch モード
-drizzle-docs generate ./src/db/schema.ts -d postgresql -w
+# Watch モード
+drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -w
 ```
 
-### Markdown 出力
-
-```bash
-# Markdown 出力 (ER 図付き複数ファイル)
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown -o ./docs
-
-# Markdown 出力 (単一ファイル)
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --single-file -o schema.md
-
-# ER 図なしの Markdown
-drizzle-docs generate ./src/db/schema.ts -d postgresql -f markdown --no-er-diagram -o ./docs
-```
-
-### オプション
+#### 共通オプション
 
 | オプション                | 説明                                                  |
 | ------------------------- | ----------------------------------------------------- |
 | `-o, --output <path>`     | 出力ファイルまたはディレクトリパス                    |
 | `-d, --dialect <dialect>` | DB 種別: `postgresql` (デフォルト), `mysql`, `sqlite` |
-| `-f, --format <format>`   | 出力形式: `dbml` (デフォルト), `markdown`             |
+| `-f, --format <format>`   | 出力形式: `markdown` (デフォルト), `dbml`             |
 | `-w, --watch`             | ファイル変更時に自動再生成                            |
-| `--single-file`           | Markdown を単一ファイルで出力 (markdown のみ)         |
-| `--no-er-diagram`         | ER 図を Markdown 出力から除外                         |
 | `--force`                 | 確認なしで既存ファイルを上書き                        |
 
 ### リレーション検出

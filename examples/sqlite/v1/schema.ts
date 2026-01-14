@@ -1,58 +1,60 @@
 /**
- * PostgreSQL example schema using Drizzle v1 defineRelations() API
+ * SQLite example schema for v1 defineRelations API
  *
- * This schema uses the new v1 API (defineRelations) instead of v0 (relations)
+ * This schema demonstrates the modern v1 defineRelations() API
+ * which is the recommended approach for defining relations in Drizzle v1+
+ *
+ * Key features:
+ * - Uses defineRelations() from drizzle-orm
+ * - Cleaner, more modern relation definitions
+ * - Supports bidirectional relation queries
  */
 
 import {
-  pgTable,
-  serial,
-  text,
-  varchar,
+  sqliteTable,
   integer,
-  boolean,
-  timestamp,
+  text,
   primaryKey,
   foreignKey,
   unique,
   index,
-} from "drizzle-orm/pg-core";
+} from "drizzle-orm/sqlite-core";
 import { defineRelations } from "drizzle-orm";
 
 /** User accounts table storing basic user information */
-export const users = pgTable(
+export const users = sqliteTable(
   "users",
   {
     /** Auto-generated unique identifier */
-    id: serial("id").primaryKey(),
+    id: integer("id").primaryKey(),
     /** User's display name */
-    name: varchar("name", { length: 100 }).notNull(),
+    name: text("name").notNull(),
     /** Email address (must be unique) */
-    email: varchar("email", { length: 255 }).unique().notNull(),
+    email: text("email").unique().notNull(),
     /** Whether the user account is active */
-    active: boolean("active").default(true),
-    /** Timestamp when the user was created */
-    createdAt: timestamp("created_at").defaultNow(),
+    active: integer("active", { mode: "boolean" }).default(true),
+    /** Timestamp when the user was created (stored as unix timestamp) */
+    createdAt: integer("created_at", { mode: "timestamp" }),
   },
   (table) => [index("users_email_idx").on(table.email)],
 );
 
 /** Blog posts created by users */
-export const posts = pgTable(
+export const posts = sqliteTable(
   "posts",
   {
     /** Auto-generated unique identifier */
-    id: serial("id").primaryKey(),
+    id: integer("id").primaryKey(),
     /** Post title */
-    title: varchar("title", { length: 200 }).notNull(),
+    title: text("title").notNull(),
     /** Post content body */
     content: text("content"),
     /** Whether the post is published */
-    published: boolean("published").default(false),
+    published: integer("published", { mode: "boolean" }).default(false),
     /** ID of the post author */
     authorId: integer("author_id").notNull(),
-    /** Timestamp when the post was created */
-    createdAt: timestamp("created_at").defaultNow(),
+    /** Timestamp when the post was created (stored as unix timestamp) */
+    createdAt: integer("created_at", { mode: "timestamp" }),
   },
   (table) => [
     foreignKey({
@@ -64,19 +66,19 @@ export const posts = pgTable(
 );
 
 /** Comments on posts */
-export const comments = pgTable(
+export const comments = sqliteTable(
   "comments",
   {
     /** Auto-generated unique identifier */
-    id: serial("id").primaryKey(),
+    id: integer("id").primaryKey(),
     /** Comment text */
     body: text("body").notNull(),
     /** ID of the post this comment belongs to */
     postId: integer("post_id").notNull(),
     /** ID of the user who wrote the comment */
     authorId: integer("author_id").notNull(),
-    /** Timestamp when the comment was created */
-    createdAt: timestamp("created_at").defaultNow(),
+    /** Timestamp when the comment was created (stored as unix timestamp) */
+    createdAt: integer("created_at", { mode: "timestamp" }),
   },
   (table) => [
     foreignKey({
@@ -91,21 +93,21 @@ export const comments = pgTable(
 );
 
 /** Tags for categorizing posts */
-export const tags = pgTable(
+export const tags = sqliteTable(
   "tags",
   {
     /** Auto-generated unique identifier */
-    id: serial("id").primaryKey(),
+    id: integer("id").primaryKey(),
     /** Tag name (must be unique) */
-    name: varchar("name", { length: 50 }).unique().notNull(),
+    name: text("name").unique().notNull(),
     /** Tag color for display */
-    color: varchar("color", { length: 7 }).default("#000000"),
+    color: text("color").default("#000000"),
   },
   (table) => [unique("tags_name_unique").on(table.name)],
 );
 
 /** Join table for many-to-many relationship between posts and tags */
-export const postTags = pgTable(
+export const postTags = sqliteTable(
   "post_tags",
   {
     /** ID of the post */
@@ -126,29 +128,49 @@ export const postTags = pgTable(
   ],
 );
 
-// Schema object for defineRelations
-const schema = { users, posts, comments, tags, postTags };
+// v1 Relations using defineRelations() API
+const schema = {
+  users,
+  posts,
+  comments,
+  tags,
+  postTags,
+};
 
-// v1 API: defineRelations() for relational queries
-export const relations = defineRelations(schema, (r) => ({
+export const relationsConfig = defineRelations(schema, (r) => ({
   users: {
     posts: r.many.posts(),
     comments: r.many.comments(),
   },
   posts: {
-    author: r.one.users({ from: r.posts.authorId, to: r.users.id }),
+    author: r.one.users({
+      from: r.posts.authorId,
+      to: r.users.id,
+    }),
     comments: r.many.comments(),
     postTags: r.many.postTags(),
   },
   comments: {
-    post: r.one.posts({ from: r.comments.postId, to: r.posts.id }),
-    author: r.one.users({ from: r.comments.authorId, to: r.users.id }),
+    post: r.one.posts({
+      from: r.comments.postId,
+      to: r.posts.id,
+    }),
+    author: r.one.users({
+      from: r.comments.authorId,
+      to: r.users.id,
+    }),
   },
   tags: {
     postTags: r.many.postTags(),
   },
   postTags: {
-    post: r.one.posts({ from: r.postTags.postId, to: r.posts.id }),
-    tag: r.one.tags({ from: r.postTags.tagId, to: r.tags.id }),
+    post: r.one.posts({
+      from: r.postTags.postId,
+      to: r.posts.id,
+    }),
+    tag: r.one.tags({
+      from: r.postTags.tagId,
+      to: r.tags.id,
+    }),
   },
 }));

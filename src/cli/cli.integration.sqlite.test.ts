@@ -110,7 +110,10 @@ describe("SQLite v1 (defineRelations())", () => {
   it("should output to file with -o flag", async () => {
     const outputPath = join(TEST_OUTPUT_DIR, "sqlite-v1-output.dbml");
 
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { output: outputPath });
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", {
+      output: outputPath,
+      force: true,
+    });
 
     expect(result.exitCode).toBe(0);
     expect(existsSync(outputPath)).toBe(true);

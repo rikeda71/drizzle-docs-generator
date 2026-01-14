@@ -1,0 +1,67 @@
+Table "comments" {
+  "id" serial [primary key, not null, increment, note: 'Auto-generated unique identifier']
+  "body" text [not null, note: 'Comment text']
+  "post_id" integer [not null, note: 'ID of the post this comment belongs to']
+  "author_id" integer [not null, note: 'ID of the user who wrote the comment']
+  "created_at" timestamp [default: `now()`, note: 'Timestamp when the comment was created']
+
+  Note: 'Comments on posts'
+}
+
+Table "post_tags" {
+  "post_id" integer [not null, note: 'ID of the post']
+  "tag_id" integer [not null, note: 'ID of the tag']
+
+  indexes {
+    ("post_id", "tag_id") [pk]
+  }
+
+  Note: 'Join table for many-to-many relationship between posts and tags'
+}
+
+Table "posts" {
+  "id" serial [primary key, not null, increment, note: 'Auto-generated unique identifier']
+  "title" varchar(200) [not null, note: 'Post title']
+  "content" text [note: 'Post content body']
+  "published" boolean [default: false, note: 'Whether the post is published']
+  "author_id" integer [not null, note: 'ID of the post author']
+  "created_at" timestamp [default: `now()`, note: 'Timestamp when the post was created']
+
+  indexes {
+    ("author_id") [name: 'posts_author_idx']
+  }
+
+  Note: 'Blog posts created by users'
+}
+
+Table "tags" {
+  "id" serial [primary key, not null, increment, note: 'Auto-generated unique identifier']
+  "name" varchar(50) [not null, unique, note: 'Tag name (must be unique)']
+  "color" varchar(7) [default: '#000000', note: 'Tag color for display']
+
+  indexes {
+    ("name") [unique]
+  }
+
+  Note: 'Tags for categorizing posts'
+}
+
+Table "users" {
+  "id" serial [primary key, not null, increment, note: 'Auto-generated unique identifier']
+  "name" varchar(100) [not null, note: 'User\'s display name']
+  "email" varchar(255) [not null, unique, note: 'Email address (must be unique)']
+  "active" boolean [default: true, note: 'Whether the user account is active']
+  "created_at" timestamp [default: `now()`, note: 'Timestamp when the user was created']
+
+  indexes {
+    ("email") [name: 'users_email_idx']
+  }
+
+  Note: 'User accounts table storing basic user information'
+}
+
+Ref: "posts"."author_id" > "users"."id"
+Ref: "comments"."post_id" > "posts"."id"
+Ref: "comments"."author_id" > "users"."id"
+Ref: "post_tags"."post_id" > "posts"."id"
+Ref: "post_tags"."tag_id" > "tags"."id"

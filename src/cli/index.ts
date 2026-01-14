@@ -366,7 +366,7 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
         }
       }
     } else {
-      // Generate DBML format (default)
+      // Generate DBML format
       const dbml = generateDbmlOutput(mergedSchema, schemaPaths, options);
 
       if (options.output) {

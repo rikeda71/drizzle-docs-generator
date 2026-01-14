@@ -103,7 +103,10 @@ describe("PostgreSQL v1 (defineRelations())", () => {
   it("should output to file with -o flag", async () => {
     const outputPath = join(TEST_OUTPUT_DIR, "pg-v1-output.dbml");
 
-    const result = await runGenerate(PG_SCHEMA_V1, "postgresql", { output: outputPath });
+    const result = await runGenerate(PG_SCHEMA_V1, "postgresql", {
+      output: outputPath,
+      force: true,
+    });
 
     expect(result.exitCode).toBe(0);
     expect(existsSync(outputPath)).toBe(true);

@@ -1,6 +1,6 @@
 {
   "name": "drizzle-docs-generator",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "A CLI tool that generates DBML files from Drizzle ORM schema definitions.",
   "keywords": [
     "cli",
@@ -41,12 +41,12 @@
     "dev": "vite build --watch",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration": "rm -rf src/cli/__integration_test_output__ && vitest run --config vitest.integration.config.ts",
     "lint": "oxlint",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
     "typecheck": "tsc --noEmit",
-    "generate:examples": "node dist/cli/index.js generate examples/pg/schema.ts -d postgresql -f dbml -o examples/pg/schema.dbml --force && node dist/cli/index.js generate examples/pg/schema.ts -d postgresql -f markdown -o examples/pg/markdown --force && node dist/cli/index.js generate examples/mysql/schema.ts -d mysql -f dbml -o examples/mysql/schema.dbml --force && node dist/cli/index.js generate examples/mysql/schema.ts -d mysql -f markdown -o examples/mysql/markdown --force && node dist/cli/index.js generate examples/sqlite/schema.ts -d sqlite -f dbml -o examples/sqlite/schema.dbml --force && node dist/cli/index.js generate examples/sqlite/schema.ts -d sqlite -f markdown -o examples/sqlite/markdown --force",
+    "generate:examples": "node dist/cli/index.js generate examples/pg/v0/schema.ts -d postgresql -f dbml -o examples/pg/v0/schema.dbml --force && node dist/cli/index.js generate examples/pg/v0/schema.ts -d postgresql -f markdown -o examples/pg/v0/markdown --force && node dist/cli/index.js generate examples/pg/v1/schema.ts -d postgresql -f dbml -o examples/pg/v1/schema.dbml --force && node dist/cli/index.js generate examples/pg/v1/schema.ts -d postgresql -f markdown -o examples/pg/v1/markdown --force && node dist/cli/index.js generate examples/mysql/v0/schema.ts -d mysql -f dbml -o examples/mysql/v0/schema.dbml --force && node dist/cli/index.js generate examples/mysql/v0/schema.ts -d mysql -f markdown -o examples/mysql/v0/markdown --force && node dist/cli/index.js generate examples/mysql/v1/schema.ts -d mysql -f dbml -o examples/mysql/v1/schema.dbml --force && node dist/cli/index.js generate examples/mysql/v1/schema.ts -d mysql -f markdown -o examples/mysql/v1/markdown --force && node dist/cli/index.js generate examples/sqlite/v0/schema.ts -d sqlite -f dbml -o examples/sqlite/v0/schema.dbml --force && node dist/cli/index.js generate examples/sqlite/v0/schema.ts -d sqlite -f markdown -o examples/sqlite/v0/markdown --force && node dist/cli/index.js generate examples/sqlite/v1/schema.ts -d sqlite -f dbml -o examples/sqlite/v1/schema.dbml --force && node dist/cli/index.js generate examples/sqlite/v1/schema.ts -d sqlite -f markdown -o examples/sqlite/v1/markdown --force",
     "prepublishOnly": "pnpm run format && pnpm run lint && pnpm run typecheck && pnpm run test:run && pnpm run build"
   },
   "dependencies": {
