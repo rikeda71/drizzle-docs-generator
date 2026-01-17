@@ -31,6 +31,7 @@ describe("Overwrite Protection (--force option)", () => {
 
     const result = await runGenerate(PG_SCHEMA_V1, "postgresql", {
       output: outputPath,
+      format: "dbml",
     });
 
     expect(result.exitCode).toBe(1);
@@ -51,6 +52,7 @@ describe("Overwrite Protection (--force option)", () => {
     const result = await runGenerate(PG_SCHEMA_V1, "postgresql", {
       output: outputPath,
       force: true,
+      format: "dbml",
     });
 
     expect(result.exitCode).toBe(0);

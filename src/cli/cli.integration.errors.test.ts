@@ -34,7 +34,7 @@ describe("Error Handling", () => {
 describe("Directory Import", () => {
   it("should generate DBML from directory containing schema files", async () => {
     const schemaDir = join(EXAMPLES_DIR, "pg");
-    const result = await runCli(["generate", schemaDir, "-d", "postgresql"]);
+    const result = await runCli(["generate", schemaDir, "-d", "postgresql", "-f", "dbml"]);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Table "users"');
@@ -55,6 +55,7 @@ describe("Format Option Validation", () => {
   it("should warn when --single-file used with dbml format", async () => {
     const result = await runGenerate(PG_SCHEMA_V1, "postgresql", {
       singleFile: true,
+      format: "dbml",
     });
 
     expect(result.exitCode).toBe(0);
@@ -64,6 +65,7 @@ describe("Format Option Validation", () => {
   it("should warn when --no-er-diagram used with dbml format", async () => {
     const result = await runGenerate(PG_SCHEMA_V1, "postgresql", {
       noErDiagram: true,
+      format: "dbml",
     });
 
     expect(result.exitCode).toBe(0);

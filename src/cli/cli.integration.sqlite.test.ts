@@ -29,7 +29,7 @@ setupIntegrationTest();
 
 describe("SQLite v0 (relations())", () => {
   it("should auto-detect relations() and generate DBML with relations", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V0, "sqlite");
+    const result = await runGenerate(SQLITE_SCHEMA_V0, "sqlite", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -42,7 +42,7 @@ describe("SQLite v0 (relations())", () => {
 
 describe("SQLite v1 (defineRelations())", () => {
   it("should generate DBML for schema", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite");
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -51,7 +51,7 @@ describe("SQLite v1 (defineRelations())", () => {
   });
 
   it("should generate all expected columns for users table", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite");
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(
@@ -60,14 +60,14 @@ describe("SQLite v1 (defineRelations())", () => {
   });
 
   it("should generate foreign key references", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite");
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(hasReference(result.stdout, "posts", "author_id", "users", "id", '"')).toBe(true);
   });
 
   it("should generate indexes for tables", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite");
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(hasIndexes(result.stdout, "users", '"')).toBe(true);
@@ -75,7 +75,7 @@ describe("SQLite v1 (defineRelations())", () => {
   });
 
   it("should generate composite primary key for post_tags", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite");
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(hasIndexes(result.stdout, "post_tags", '"')).toBe(true);
@@ -83,7 +83,7 @@ describe("SQLite v1 (defineRelations())", () => {
   });
 
   it("should extract JSDoc comments as Notes", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite");
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(hasTableNote(result.stdout, "users", "User accounts", '"')).toBe(true);
@@ -91,14 +91,14 @@ describe("SQLite v1 (defineRelations())", () => {
   });
 
   it("should detect INTEGER PRIMARY KEY as auto-increment", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite");
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('"id" integer [primary key, not null, increment');
   });
 
   it("should auto-detect defineRelations() and generate relations", async () => {
-    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite");
+    const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(countRefs(result.stdout)).toBeGreaterThan(0);
@@ -113,6 +113,7 @@ describe("SQLite v1 (defineRelations())", () => {
     const result = await runGenerate(SQLITE_SCHEMA_V1, "sqlite", {
       output: outputPath,
       force: true,
+      format: "dbml",
     });
 
     expect(result.exitCode).toBe(0);
