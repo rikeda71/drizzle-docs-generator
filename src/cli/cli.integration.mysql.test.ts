@@ -112,7 +112,11 @@ describe("MySQL v1 (defineRelations())", () => {
   it("should output to file with -o flag", async () => {
     const outputPath = join(TEST_OUTPUT_DIR, "mysql-v1-output.dbml");
 
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { output: outputPath, force: true, format: "dbml" });
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", {
+      output: outputPath,
+      force: true,
+      format: "dbml",
+    });
 
     expect(result.exitCode).toBe(0);
     expect(existsSync(outputPath)).toBe(true);
