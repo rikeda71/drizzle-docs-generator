@@ -29,7 +29,7 @@ setupIntegrationTest();
 
 describe("MySQL v0 (relations())", () => {
   it("should auto-detect relations() and generate DBML with relations", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V0, "mysql");
+    const result = await runGenerate(MYSQL_SCHEMA_V0, "mysql", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -42,7 +42,7 @@ describe("MySQL v0 (relations())", () => {
 
 describe("MySQL v1 (defineRelations())", () => {
   it("should generate DBML for schema", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql");
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -51,7 +51,7 @@ describe("MySQL v1 (defineRelations())", () => {
   });
 
   it("should generate all expected columns for users table", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql");
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(
@@ -60,14 +60,14 @@ describe("MySQL v1 (defineRelations())", () => {
   });
 
   it("should generate foreign key references", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql");
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(hasReference(result.stdout, "posts", "author_id", "users", "id", '"')).toBe(true);
   });
 
   it("should generate indexes for tables", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql");
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(hasIndexes(result.stdout, "users", '"')).toBe(true);
@@ -75,7 +75,7 @@ describe("MySQL v1 (defineRelations())", () => {
   });
 
   it("should generate composite primary key for post_tags", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql");
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(hasIndexes(result.stdout, "post_tags", '"')).toBe(true);
@@ -83,7 +83,7 @@ describe("MySQL v1 (defineRelations())", () => {
   });
 
   it("should extract JSDoc comments as Notes", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql");
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(hasTableNote(result.stdout, "users", "User accounts", '"')).toBe(true);
@@ -91,7 +91,7 @@ describe("MySQL v1 (defineRelations())", () => {
   });
 
   it("should use double-quote escaping for identifiers", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql");
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Table "users" {');
@@ -100,7 +100,7 @@ describe("MySQL v1 (defineRelations())", () => {
   });
 
   it("should auto-detect defineRelations() and generate relations", async () => {
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql");
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" });
 
     expect(result.exitCode).toBe(0);
     expect(countRefs(result.stdout)).toBeGreaterThan(0);
@@ -112,7 +112,11 @@ describe("MySQL v1 (defineRelations())", () => {
   it("should output to file with -o flag", async () => {
     const outputPath = join(TEST_OUTPUT_DIR, "mysql-v1-output.dbml");
 
-    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", { output: outputPath, force: true });
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", {
+      output: outputPath,
+      force: true,
+      format: "dbml",
+    });
 
     expect(result.exitCode).toBe(0);
     expect(existsSync(outputPath)).toBe(true);
