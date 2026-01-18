@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "commander": "^14.0.2",
-    "drizzle-orm": "1.0.0-beta.10-42c284e",
+    "drizzle-orm": "1.0.0-beta.12-b5a187e",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
