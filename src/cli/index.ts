@@ -320,9 +320,15 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
     if (options.format === "markdown") {
       // Generate Markdown format
       const GeneratorClass = getGeneratorClass(options.dialect);
+      // For multiple files, pass the directory path to extract comments from all files
+      const firstFilePath = schemaPaths[0];
+      if (!firstFilePath) {
+        throw new Error("No schema files found");
+      }
+      const sourcePath = schemaPaths.length === 1 ? firstFilePath : dirname(firstFilePath);
       const generator = new GeneratorClass({
         schema: mergedSchema,
-        source: schemaPaths[0],
+        source: sourcePath,
       });
       const intermediateSchema = generator.toIntermediateSchema();
 
