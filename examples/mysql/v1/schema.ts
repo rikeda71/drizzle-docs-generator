@@ -1,7 +1,13 @@
 /**
- * MySQL example schema using Drizzle v1 defineRelations() API
+ * MySQL example schema for v1 defineRelations API
  *
- * This schema uses the new v1 API (defineRelations) instead of v0 (relations)
+ * This schema demonstrates the modern v1 defineRelations() API
+ * which is the recommended approach for defining relations in Drizzle v1+
+ *
+ * Key features:
+ * - Uses defineRelations() from drizzle-orm
+ * - Cleaner, more modern relation definitions
+ * - Supports bidirectional relation queries
  */
 
 import {
@@ -126,29 +132,49 @@ export const postTags = mysqlTable(
   ],
 );
 
-// Schema object for defineRelations
-const schema = { users, posts, comments, tags, postTags };
+// v1 Relations using defineRelations() API
+const schema = {
+  users,
+  posts,
+  comments,
+  tags,
+  postTags,
+};
 
-// v1 API: defineRelations() for relational queries
-export const relations = defineRelations(schema, (r) => ({
+export const relationsConfig = defineRelations(schema, (r) => ({
   users: {
     posts: r.many.posts(),
     comments: r.many.comments(),
   },
   posts: {
-    author: r.one.users({ from: r.posts.authorId, to: r.users.id }),
+    author: r.one.users({
+      from: r.posts.authorId,
+      to: r.users.id,
+    }),
     comments: r.many.comments(),
     postTags: r.many.postTags(),
   },
   comments: {
-    post: r.one.posts({ from: r.comments.postId, to: r.posts.id }),
-    author: r.one.users({ from: r.comments.authorId, to: r.users.id }),
+    post: r.one.posts({
+      from: r.comments.postId,
+      to: r.posts.id,
+    }),
+    author: r.one.users({
+      from: r.comments.authorId,
+      to: r.users.id,
+    }),
   },
   tags: {
     postTags: r.many.postTags(),
   },
   postTags: {
-    post: r.one.posts({ from: r.postTags.postId, to: r.posts.id }),
-    tag: r.one.tags({ from: r.postTags.tagId, to: r.tags.id }),
+    post: r.one.posts({
+      from: r.postTags.postId,
+      to: r.posts.id,
+    }),
+    tag: r.one.tags({
+      from: r.postTags.tagId,
+      to: r.tags.id,
+    }),
   },
 }));

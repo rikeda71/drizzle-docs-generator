@@ -1,4 +1,4 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicolo-ribaudo/nicolo-ribaudo/refs/heads/update-oxfmt/files/configuration_schema.json",
-  "ignorePatterns": ["examples/*/markdown/", "examples/*/*.dbml"]
+  "ignorePatterns": ["examples/**/markdown/", "examples/*/*.dbml"]
 }

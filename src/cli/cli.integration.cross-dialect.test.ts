@@ -17,9 +17,9 @@ setupIntegrationTest();
 describe("Cross-Dialect Consistency (v1 API)", () => {
   it("should generate same number of tables across all dialects", async () => {
     const [pgResult, mysqlResult, sqliteResult] = await Promise.all([
-      runGenerate(PG_SCHEMA_V1, "postgresql"),
-      runGenerate(MYSQL_SCHEMA_V1, "mysql"),
-      runGenerate(SQLITE_SCHEMA_V1, "sqlite"),
+      runGenerate(PG_SCHEMA_V1, "postgresql", { format: "dbml" }),
+      runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" }),
+      runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" }),
     ]);
 
     expect(pgResult.exitCode).toBe(0);
@@ -33,9 +33,9 @@ describe("Cross-Dialect Consistency (v1 API)", () => {
 
   it("should generate references across all dialects", async () => {
     const [pgResult, mysqlResult, sqliteResult] = await Promise.all([
-      runGenerate(PG_SCHEMA_V1, "postgresql"),
-      runGenerate(MYSQL_SCHEMA_V1, "mysql"),
-      runGenerate(SQLITE_SCHEMA_V1, "sqlite"),
+      runGenerate(PG_SCHEMA_V1, "postgresql", { format: "dbml" }),
+      runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" }),
+      runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" }),
     ]);
 
     expect(pgResult.exitCode).toBe(0);
@@ -49,9 +49,9 @@ describe("Cross-Dialect Consistency (v1 API)", () => {
 
   it("should extract comments across all dialects", async () => {
     const [pgResult, mysqlResult, sqliteResult] = await Promise.all([
-      runGenerate(PG_SCHEMA_V1, "postgresql"),
-      runGenerate(MYSQL_SCHEMA_V1, "mysql"),
-      runGenerate(SQLITE_SCHEMA_V1, "sqlite"),
+      runGenerate(PG_SCHEMA_V1, "postgresql", { format: "dbml" }),
+      runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" }),
+      runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" }),
     ]);
 
     expect(pgResult.exitCode).toBe(0);
@@ -65,9 +65,9 @@ describe("Cross-Dialect Consistency (v1 API)", () => {
 
   it("should auto-detect relations across all dialects", async () => {
     const [pgResult, mysqlResult, sqliteResult] = await Promise.all([
-      runGenerate(PG_SCHEMA_V1, "postgresql"),
-      runGenerate(MYSQL_SCHEMA_V1, "mysql"),
-      runGenerate(SQLITE_SCHEMA_V1, "sqlite"),
+      runGenerate(PG_SCHEMA_V1, "postgresql", { format: "dbml" }),
+      runGenerate(MYSQL_SCHEMA_V1, "mysql", { format: "dbml" }),
+      runGenerate(SQLITE_SCHEMA_V1, "sqlite", { format: "dbml" }),
     ]);
 
     expect(pgResult.exitCode).toBe(0);

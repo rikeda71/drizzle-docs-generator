@@ -6,7 +6,6 @@ import type {
   ConstraintDefinition,
   RelationDefinition,
   EnumDefinition,
-  DatabaseType,
 } from "../types";
 import type { OutputFormatter, FormatterOptions } from "./types";
 import { DbmlBuilder } from "./dbml-builder";
@@ -28,7 +27,6 @@ const DEFAULT_OPTIONS: Required<FormatterOptions> = {
  */
 export class DbmlFormatter implements OutputFormatter {
   private options: Required<FormatterOptions>;
-  private databaseType: DatabaseType = "postgresql";
 
   /**
    * Create a new DbmlFormatter
@@ -47,9 +45,6 @@ export class DbmlFormatter implements OutputFormatter {
    */
   format(schema: IntermediateSchema): string {
     const dbml = new DbmlBuilder();
-
-    // Store database type for name escaping
-    this.databaseType = schema.databaseType;
 
     // Generate enums (PostgreSQL specific)
     for (const enumDef of schema.enums) {
@@ -170,9 +165,15 @@ export class DbmlFormatter implements OutputFormatter {
    * - Strings: already wrapped with single quotes (e.g., "'user'")
    * - Numbers/booleans: as-is (e.g., "true", "42")
    * - null: "null"
+   *
+   * DBML syntax requires:
+   * - SQL functions/expressions: wrapped in backticks (e.g., `now()`)
+   * - Strings: single quotes (e.g., 'user')
+   * - Numbers/booleans/null: as-is
    */
   private formatDefaultValue(value: string): string {
     // If it looks like a SQL expression (contains parentheses or is a known function)
+    // Wrap in backticks for dbdiagram.io compatibility
     if (value.includes("(") || value.includes("::") || this.isKnownSqlFunction(value)) {
       return `\`${value}\``;
     }
@@ -307,16 +308,11 @@ export class DbmlFormatter implements OutputFormatter {
   }
 
   /**
-   * Escape a name for DBML based on database type
+   * Escape a name for DBML
    *
-   * - PostgreSQL/SQLite: Use double quotes ("name")
-   * - MySQL: Use backticks (`name`)
+   * DBML uses double quotes for all database types
    */
   private escapeName(name: string): string {
-    if (this.databaseType === "mysql") {
-      return `\`${name}\``;
-    }
-    // PostgreSQL and SQLite use double quotes
     return `"${name}"`;
   }
 
