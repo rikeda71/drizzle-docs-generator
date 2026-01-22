@@ -980,4 +980,146 @@ describe("MarkdownFormatter", () => {
       expect(typeof formatter.format).toBe("function");
     });
   });
+
+  describe("table names with underscores", () => {
+    it("should preserve underscores in anchor links for table names", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "user_accounts",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MarkdownFormatter();
+      const markdown = formatter.format(schema);
+
+      // Table header should preserve underscore
+      expect(markdown).toContain("## user_accounts");
+      // Index table link should preserve underscore in anchor
+      expect(markdown).toContain("| [user_accounts](#user_accounts) | 1 |");
+    });
+
+    it("should preserve underscores in anchor links for multiple underscore tables", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "post_tags",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+          {
+            name: "user_profiles",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MarkdownFormatter();
+      const markdown = formatter.format(schema);
+
+      // Both table headers should preserve underscores
+      expect(markdown).toContain("## post_tags");
+      expect(markdown).toContain("## user_profiles");
+      // Index table links should preserve underscores in anchors
+      expect(markdown).toContain("| [post_tags](#post_tags) |");
+      expect(markdown).toContain("| [user_profiles](#user_profiles) |");
+    });
+
+    it("should preserve underscores in relation links for underscore table names", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "user_accounts",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+          {
+            name: "post_tags",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "user_id",
+                type: "integer",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [
+          {
+            fromTable: "post_tags",
+            fromColumns: ["user_id"],
+            toTable: "user_accounts",
+            toColumns: ["id"],
+            type: "many-to-one",
+          },
+        ],
+        enums: [],
+      };
+
+      const formatter = new MarkdownFormatter();
+      const markdown = formatter.format(schema);
+
+      // Relation links should preserve underscores in anchors
+      expect(markdown).toContain("[user_accounts](#user_accounts)");
+      expect(markdown).toContain("[post_tags](#post_tags)");
+    });
+  });
 });

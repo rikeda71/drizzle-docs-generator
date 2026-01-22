@@ -427,17 +427,6 @@ export class MarkdownFormatter implements OutputFormatter {
     };
     return typeMap[type] || type;
   }
-
-  /**
-   * Create a URL-safe slug from a string
-   */
-  private slugify(str: string): string {
-    return str
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-  }
-
   /**
    * Create a table link based on the configured link format
    */
@@ -446,7 +435,7 @@ export class MarkdownFormatter implements OutputFormatter {
     if (this.options.linkFormat === "file") {
       return `[${text}](./${tableName}.md)`;
     }
-    return `[${text}](#${this.slugify(tableName)})`;
+    return `[${text}](#${tableName})`;
   }
 
   /**
