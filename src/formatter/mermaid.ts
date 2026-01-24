@@ -249,18 +249,33 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
       boolean: "boolean",
       timestamp: "timestamp",
       timestamptz: "timestamptz",
+      "timestamp with time zone": "timestamptz",
+      "time with time zone": "timetz",
       date: "date",
       time: "time",
+      timetz: "timetz",
       json: "json",
       jsonb: "jsonb",
       uuid: "uuid",
       real: "real",
       float: "float",
       double: "double",
+      "double precision": "double",
       decimal: "decimal",
       numeric: "numeric",
       blob: "blob",
       bytea: "bytea",
+      // MySQL types
+      tinyint: "tinyint",
+      mediumint: "mediumint",
+      // MySQL unsigned types (u-prefix for distinction)
+      "tinyint unsigned": "utinyint",
+      "smallint unsigned": "usmallint",
+      "mediumint unsigned": "umediumint",
+      "int unsigned": "uint",
+      "bigint unsigned": "ubigint",
+      "float unsigned": "ufloat",
+      "double unsigned": "udouble",
     };
 
     return typeMap[simplified] || simplified;

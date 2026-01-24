@@ -959,6 +959,165 @@ describe("MermaidErDiagramFormatter", () => {
 
       expect(mermaid).toContain("int age");
     });
+
+    it("should map 'timestamp with time zone' to timestamptz", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "invites",
+            columns: [
+              {
+                name: "id",
+                type: "uuid",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "created_at",
+                type: "timestamp with time zone",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      expect.soft(mermaid).toContain("timestamptz created_at");
+      expect.soft(mermaid).not.toContain("timestamp with time zone");
+    });
+
+    it("should map 'time with time zone' to timetz", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "start_time",
+                type: "time with time zone",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      expect.soft(mermaid).toContain("timetz start_time");
+      expect.soft(mermaid).not.toContain("time with time zone");
+    });
+
+    it("should map 'double precision' to double", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "measurements",
+            columns: [
+              {
+                name: "value",
+                type: "double precision",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      expect.soft(mermaid).toContain("double value");
+      expect.soft(mermaid).not.toContain("double precision");
+    });
+
+    it("should map MySQL unsigned types correctly", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "mysql",
+        tables: [
+          {
+            name: "counters",
+            columns: [
+              {
+                name: "small_count",
+                type: "tinyint unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+              {
+                name: "medium_count",
+                type: "int unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+              {
+                name: "big_count",
+                type: "bigint unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+              {
+                name: "float_val",
+                type: "float unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+              {
+                name: "double_val",
+                type: "double unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      expect.soft(mermaid).toContain("utinyint small_count");
+      expect.soft(mermaid).toContain("uint medium_count");
+      expect.soft(mermaid).toContain("ubigint big_count");
+      expect.soft(mermaid).toContain("ufloat float_val");
+      expect.soft(mermaid).toContain("udouble double_val");
+      expect.soft(mermaid).not.toContain(" unsigned");
+    });
   });
 
   describe("OutputFormatter interface", () => {
