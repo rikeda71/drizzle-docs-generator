@@ -959,6 +959,73 @@ describe("MermaidErDiagramFormatter", () => {
 
       expect(mermaid).toContain("int age");
     });
+
+    it("should map 'timestamp with time zone' to timestamptz", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "invites",
+            columns: [
+              {
+                name: "id",
+                type: "uuid",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "created_at",
+                type: "timestamp with time zone",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      expect(mermaid).toContain("timestamptz created_at");
+      expect(mermaid).not.toContain("timestamp with time zone");
+    });
+
+    it("should map 'time with time zone' to timetz", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "start_time",
+                type: "time with time zone",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      expect(mermaid).toContain("timetz start_time");
+      expect(mermaid).not.toContain("time with time zone");
+    });
   });
 
   describe("OutputFormatter interface", () => {
