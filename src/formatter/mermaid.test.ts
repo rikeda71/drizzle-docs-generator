@@ -1026,6 +1026,98 @@ describe("MermaidErDiagramFormatter", () => {
       expect(mermaid).toContain("timetz start_time");
       expect(mermaid).not.toContain("time with time zone");
     });
+
+    it("should map 'double precision' to double", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "measurements",
+            columns: [
+              {
+                name: "value",
+                type: "double precision",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      expect(mermaid).toContain("double value");
+      expect(mermaid).not.toContain("double precision");
+    });
+
+    it("should map MySQL unsigned types correctly", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "mysql",
+        tables: [
+          {
+            name: "counters",
+            columns: [
+              {
+                name: "small_count",
+                type: "tinyint unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+              {
+                name: "medium_count",
+                type: "int unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+              {
+                name: "big_count",
+                type: "bigint unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+              {
+                name: "float_val",
+                type: "float unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+              {
+                name: "double_val",
+                type: "double unsigned",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      expect(mermaid).toContain("tinyint small_count");
+      expect(mermaid).toContain("int medium_count");
+      expect(mermaid).toContain("bigint big_count");
+      expect(mermaid).toContain("float float_val");
+      expect(mermaid).toContain("double double_val");
+      expect(mermaid).not.toContain("unsigned");
+    });
   });
 
   describe("OutputFormatter interface", () => {

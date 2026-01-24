@@ -260,10 +260,21 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
       real: "real",
       float: "float",
       double: "double",
+      "double precision": "double",
       decimal: "decimal",
       numeric: "numeric",
       blob: "blob",
       bytea: "bytea",
+      // MySQL unsigned types
+      tinyint: "tinyint",
+      mediumint: "mediumint",
+      "tinyint unsigned": "tinyint",
+      "smallint unsigned": "smallint",
+      "mediumint unsigned": "mediumint",
+      "int unsigned": "int",
+      "bigint unsigned": "bigint",
+      "float unsigned": "float",
+      "double unsigned": "double",
     };
 
     return typeMap[simplified] || simplified;
