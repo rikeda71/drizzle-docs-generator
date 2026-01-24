@@ -1111,12 +1111,12 @@ describe("MermaidErDiagramFormatter", () => {
       const formatter = new MermaidErDiagramFormatter();
       const mermaid = formatter.format(schema);
 
-      expect(mermaid).toContain("tinyint small_count");
-      expect(mermaid).toContain("int medium_count");
-      expect(mermaid).toContain("bigint big_count");
-      expect(mermaid).toContain("float float_val");
-      expect(mermaid).toContain("double double_val");
-      expect(mermaid).not.toContain("unsigned");
+      expect(mermaid).toContain("utinyint small_count");
+      expect(mermaid).toContain("uint medium_count");
+      expect(mermaid).toContain("ubigint big_count");
+      expect(mermaid).toContain("ufloat float_val");
+      expect(mermaid).toContain("udouble double_val");
+      expect(mermaid).not.toContain(" unsigned");
     });
   });
 
