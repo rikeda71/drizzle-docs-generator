@@ -993,8 +993,8 @@ describe("MermaidErDiagramFormatter", () => {
       const formatter = new MermaidErDiagramFormatter();
       const mermaid = formatter.format(schema);
 
-      expect(mermaid).toContain("timestamptz created_at");
-      expect(mermaid).not.toContain("timestamp with time zone");
+      expect.soft(mermaid).toContain("timestamptz created_at");
+      expect.soft(mermaid).not.toContain("timestamp with time zone");
     });
 
     it("should map 'time with time zone' to timetz", () => {
@@ -1023,8 +1023,8 @@ describe("MermaidErDiagramFormatter", () => {
       const formatter = new MermaidErDiagramFormatter();
       const mermaid = formatter.format(schema);
 
-      expect(mermaid).toContain("timetz start_time");
-      expect(mermaid).not.toContain("time with time zone");
+      expect.soft(mermaid).toContain("timetz start_time");
+      expect.soft(mermaid).not.toContain("time with time zone");
     });
 
     it("should map 'double precision' to double", () => {
@@ -1053,8 +1053,8 @@ describe("MermaidErDiagramFormatter", () => {
       const formatter = new MermaidErDiagramFormatter();
       const mermaid = formatter.format(schema);
 
-      expect(mermaid).toContain("double value");
-      expect(mermaid).not.toContain("double precision");
+      expect.soft(mermaid).toContain("double value");
+      expect.soft(mermaid).not.toContain("double precision");
     });
 
     it("should map MySQL unsigned types correctly", () => {
@@ -1111,12 +1111,12 @@ describe("MermaidErDiagramFormatter", () => {
       const formatter = new MermaidErDiagramFormatter();
       const mermaid = formatter.format(schema);
 
-      expect(mermaid).toContain("utinyint small_count");
-      expect(mermaid).toContain("uint medium_count");
-      expect(mermaid).toContain("ubigint big_count");
-      expect(mermaid).toContain("ufloat float_val");
-      expect(mermaid).toContain("udouble double_val");
-      expect(mermaid).not.toContain(" unsigned");
+      expect.soft(mermaid).toContain("utinyint small_count");
+      expect.soft(mermaid).toContain("uint medium_count");
+      expect.soft(mermaid).toContain("ubigint big_count");
+      expect.soft(mermaid).toContain("ufloat float_val");
+      expect.soft(mermaid).toContain("udouble double_val");
+      expect.soft(mermaid).not.toContain(" unsigned");
     });
   });
 
