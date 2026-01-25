@@ -1,6 +1,7 @@
 # drizzle-docs-generator
 
-[![NPM](https://nodei.co/npm/drizzle-docs-generator.svg?style=shields&data=v,d&color=brightgreen)](https://nodei.co/npm/drizzle-docs-generator/)
+[![NPM](https://nodei.co/npm/drizzle-docs-generator.svg?style=shields&data=v,d&color=brightgreen)](https://www.npmjs.com/package/drizzle-docs-generator)
+[![codecov](https://codecov.io/gh/rikeda71/drizzle-docs-generator/branch/main/graph/badge.svg)](https://codecov.io/gh/rikeda71/drizzle-docs-generator)
 
 CLI tool to generate DBML and Markdown documentation from Drizzle ORM schemas. Extracts JSDoc comments and outputs them as Note clauses.
 

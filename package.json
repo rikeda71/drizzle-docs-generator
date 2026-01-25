@@ -10,7 +10,8 @@
     "drizzle",
     "drizzle-orm",
     "schema",
-    "typescript"
+    "typescript",
+    "mermaid"
   ],
   "homepage": "https://github.com/rikeda71/drizzle-docs-generator#readme",
   "bugs": {
@@ -42,6 +43,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:integration": "rm -rf src/cli/__integration_test_output__ && vitest run --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --coverage",
     "lint": "oxlint",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
@@ -57,11 +59,12 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.7",
+    "@vitest/coverage-v8": "^4.0.18",
     "oxfmt": "^0.24.0",
     "oxlint": "^1.39.0",
     "vite": "^7.3.1",
     "vite-plugin-dts": "^4.5.4",
-    "vitest": "^4.0.17"
+    "vitest": "^4.0.18"
   },
   "peerDependencies": {
     "drizzle-orm": ">=0.44.0 || >=1.0.0-beta.0"
