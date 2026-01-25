@@ -576,4 +576,19 @@ export const users = mysqlTable("users", {
     expect(dbml).toContain("Note: 'User\\'s table with \\'quotes\\''");
     expect(dbml).toContain("note: 'It\\'s the primary key'");
   });
+
+  it("should write to file when out option is provided", async () => {
+    const users = mysqlTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const outPath = join(TEST_DIR, "output.dbml");
+    const dbml = mysqlGenerate({ schema: { users }, out: outPath });
+
+    const { readFileSync, existsSync } = await import("node:fs");
+    expect.soft(existsSync(outPath)).toBe(true);
+    expect.soft(readFileSync(outPath, "utf-8")).toBe(dbml);
+    expect.soft(dbml).toContain('Table "users"');
+  });
 });
