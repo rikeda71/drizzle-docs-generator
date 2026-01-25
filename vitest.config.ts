@@ -10,11 +10,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json", "html", "lcov"],
       include: ["src/**/*.ts"],
-      exclude: [
-        "src/**/*.test.ts",
-        "src/**/*.integration.*.test.ts",
-        "src/cli/index.ts",
-      ],
+      exclude: ["src/**/*.test.ts", "src/**/*.integration.*.test.ts", "src/cli/index.ts"],
     },
   },
 });

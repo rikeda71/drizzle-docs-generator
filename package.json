@@ -9,9 +9,9 @@
     "documentation",
     "drizzle",
     "drizzle-orm",
+    "mermaid",
     "schema",
-    "typescript",
-    "mermaid"
+    "typescript"
   ],
   "homepage": "https://github.com/rikeda71/drizzle-docs-generator#readme",
   "bugs": {
