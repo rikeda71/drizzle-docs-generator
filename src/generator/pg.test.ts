@@ -672,6 +672,49 @@ describe("pgGenerate with RQBv2 (defineRelations)", () => {
     expect.soft(dbml).toContain('Table "profiles"');
     expect.soft(dbml).toContain("Ref:");
   });
+
+  it("should skip duplicate v1 relations", async () => {
+    const { defineRelations } = await import("drizzle-orm");
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const posts = pgTable("posts", {
+      id: serial("id").primaryKey(),
+      authorId: integer("author_id"),
+    });
+
+    const schema = { users, posts };
+
+    const rqbv2Relations = defineRelations(schema, (r) => ({
+      posts: {
+        author: r.one.users({
+          from: r.posts.authorId,
+          to: r.users.id,
+        }),
+        // Duplicate relation with same columns - should be skipped
+        authorDuplicate: r.one.users({
+          from: r.posts.authorId,
+          to: r.users.id,
+        }),
+      },
+    }));
+
+    const dbml = pgGenerate({
+      schema: {
+        ...schema,
+        postsRelEntry: rqbv2Relations.posts,
+      },
+    });
+
+    expect.soft(dbml).toContain('Table "users"');
+    expect.soft(dbml).toContain('Table "posts"');
+    // Should only have one Ref, not two
+    const refMatches = dbml.match(/Ref:/g);
+    expect.soft(refMatches?.length).toBe(1);
+  });
 });
 
 const TEST_DIR = join(import.meta.dirname, "__test_fixtures__");
