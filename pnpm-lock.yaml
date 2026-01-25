@@ -12,8 +12,8 @@ importers:
         specifier: ^14.0.2
         version: 14.0.2
       drizzle-orm:
-        specifier: 1.0.0-beta.12-b5a187e
-        version: 1.0.0-beta.12-b5a187e(@types/mssql@9.1.8)(mssql@11.0.1)
+        specifier: 1.0.0-beta.12-566a3bc
+        version: 1.0.0-beta.12-566a3bc(@types/mssql@9.1.8)(mssql@11.0.1)
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -788,8 +788,8 @@ packages:
     resolution: {integrity: sha512-sSuxWU5j5SR9QQji/o2qMvqRNYRDOcBTgsJ/DeCf4iSN4gW+gNMXM7wFIP+fdXZxoNiAnHUTGjCr+TSWXdRDKg==}
     engines: {node: '>=0.3.1'}
 
-  drizzle-orm@1.0.0-beta.12-b5a187e:
-    resolution: {integrity: sha512-3Kiry8K/pw/Tbb2UUvyK3LzqTRV4FLtfJIXnnd2QmnNu2lVorrLXX9uCyBBeHOkwuJASfGhIOBJmV0SfkAegsQ==}
+  drizzle-orm@1.0.0-beta.12-566a3bc:
+    resolution: {integrity: sha512-kcr8U6xeskTqHlkkUNkxpakujne5SY0AOWreqVp597kLLpX2KXNkEOcqTSabHpOEqKCT0qy1wB/LDO6frZzW+A==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -2147,7 +2147,7 @@ snapshots:
 
   diff@8.0.2: {}
 
-  drizzle-orm@1.0.0-beta.12-b5a187e(@types/mssql@9.1.8)(mssql@11.0.1):
+  drizzle-orm@1.0.0-beta.12-566a3bc(@types/mssql@9.1.8)(mssql@11.0.1):
     dependencies:
       '@types/mssql': 9.1.8
       mssql: 11.0.1
