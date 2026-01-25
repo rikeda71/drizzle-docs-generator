@@ -8,6 +8,15 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+    ignore:
+      # @types/node は Node.js バージョンと連携しているため、メジャーバージョンを固定
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
 
   # GitHub Actions の更新を管理
   - package-ecosystem: "github-actions"
@@ -17,3 +26,7 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
