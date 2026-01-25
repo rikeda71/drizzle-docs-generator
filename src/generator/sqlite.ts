@@ -12,7 +12,6 @@ export class SqliteGenerator<
   TSchema extends Record<string, unknown> = Record<string, unknown>,
 > extends BaseGenerator<TSchema> {
   protected dialectConfig: DialectConfig = {
-    escapeName: (name: string) => `"${name}"`,
     isIncrement: (column: AnyColumn) => {
       // SQLite uses INTEGER PRIMARY KEY for autoincrement
       const sqlType = column.getSQLType().toLowerCase();

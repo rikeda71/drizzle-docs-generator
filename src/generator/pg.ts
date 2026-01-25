@@ -13,7 +13,6 @@ export class PgGenerator<
   TSchema extends Record<string, unknown> = Record<string, unknown>,
 > extends BaseGenerator<TSchema> {
   protected dialectConfig: DialectConfig = {
-    escapeName: (name: string) => `"${name}"`,
     isIncrement: (column: AnyColumn) => {
       const sqlType = column.getSQLType().toLowerCase();
       return sqlType.includes("serial");

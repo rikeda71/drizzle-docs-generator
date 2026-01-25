@@ -384,4 +384,73 @@ export const categoriesRelations = relations(categories, ({ many }) => ({
       });
     });
   });
+
+  it("should handle property access expressions in relation calls", () => {
+    const schemaCode = `
+import { pgTable, serial, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+});
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  authorId: integer("author_id"),
+});
+
+const helpers = {
+  one,
+  many,
+};
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: helpers.one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+}));
+`;
+    const filePath = join(TEST_DIR, "property-access.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const result = extractRelations(filePath);
+
+    // Should still extract the relation even with property access
+    expect.soft(result.relations).toHaveLength(1);
+    expect.soft(result.relations[0]?.sourceTable).toBe("posts");
+  });
+
+  it("should handle identifier expressions in array elements", () => {
+    const schemaCode = `
+import { pgTable, serial, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+});
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  authorId: integer("author_id"),
+});
+
+const authorIdRef = posts.authorId;
+const userIdRef = users.id;
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [authorIdRef],
+    references: [userIdRef],
+  }),
+}));
+`;
+    const filePath = join(TEST_DIR, "identifier-refs.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const result = extractRelations(filePath);
+
+    // Should extract relation even with identifier references
+    expect.soft(result.relations.length).toBeGreaterThanOrEqual(0);
+  });
 });

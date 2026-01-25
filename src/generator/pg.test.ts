@@ -634,6 +634,87 @@ describe("pgGenerate with RQBv2 (defineRelations)", () => {
     // Without source file, v0 relations cannot be detected - no Ref generated
     expect(dbml).not.toContain("Ref:");
   });
+
+  it("should handle v1 relations with different column lengths", async () => {
+    const { defineRelations } = await import("drizzle-orm");
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      firstName: text("first_name"),
+      lastName: text("last_name"),
+    });
+
+    const profiles = pgTable("profiles", {
+      id: serial("id").primaryKey(),
+      userFirstName: text("user_first_name"),
+      userLastName: text("user_last_name"),
+    });
+
+    const schema = { users, profiles };
+
+    const rqbv2Relations = defineRelations(schema, (r) => ({
+      profiles: {
+        user: r.one.users({
+          from: [r.profiles.userFirstName, r.profiles.userLastName],
+          to: [r.users.firstName, r.users.lastName],
+        }),
+      },
+    }));
+
+    const dbml = pgGenerate({
+      schema: {
+        ...schema,
+        profilesRelEntry: rqbv2Relations.profiles,
+      },
+    });
+
+    expect.soft(dbml).toContain('Table "users"');
+    expect.soft(dbml).toContain('Table "profiles"');
+    expect.soft(dbml).toContain("Ref:");
+  });
+
+  it("should skip duplicate v1 relations", async () => {
+    const { defineRelations } = await import("drizzle-orm");
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const posts = pgTable("posts", {
+      id: serial("id").primaryKey(),
+      authorId: integer("author_id"),
+    });
+
+    const schema = { users, posts };
+
+    const rqbv2Relations = defineRelations(schema, (r) => ({
+      posts: {
+        author: r.one.users({
+          from: r.posts.authorId,
+          to: r.users.id,
+        }),
+        // Duplicate relation with same columns - should be skipped
+        authorDuplicate: r.one.users({
+          from: r.posts.authorId,
+          to: r.users.id,
+        }),
+      },
+    }));
+
+    const dbml = pgGenerate({
+      schema: {
+        ...schema,
+        postsRelEntry: rqbv2Relations.posts,
+      },
+    });
+
+    expect.soft(dbml).toContain('Table "users"');
+    expect.soft(dbml).toContain('Table "posts"');
+    // Should only have one Ref, not two
+    const refMatches = dbml.match(/Ref:/g);
+    expect.soft(refMatches?.length).toBe(1);
+  });
 });
 
 const TEST_DIR = join(import.meta.dirname, "__test_fixtures__");
@@ -760,6 +841,21 @@ export const users = pgTable("users", {
 
     expect(dbml).toContain("Note: 'User\\'s table with \\'quotes\\''");
     expect(dbml).toContain("note: 'It\\'s the primary key'");
+  });
+
+  it("should write to file when out option is provided", async () => {
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name"),
+    });
+
+    const outPath = join(TEST_DIR, "output.dbml");
+    const dbml = pgGenerate({ schema: { users }, out: outPath });
+
+    const { readFileSync, existsSync } = await import("node:fs");
+    expect.soft(existsSync(outPath)).toBe(true);
+    expect.soft(readFileSync(outPath, "utf-8")).toBe(dbml);
+    expect.soft(dbml).toContain('Table "users"');
   });
 });
 

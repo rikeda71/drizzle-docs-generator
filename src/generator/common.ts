@@ -37,7 +37,6 @@ import type { UnifiedRelation } from "../adapter/types";
  * Configuration for different database dialects
  */
 export interface DialectConfig {
-  escapeName: (name: string) => string;
   isIncrement: (column: AnyColumn) => boolean;
 }
 

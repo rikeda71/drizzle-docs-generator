@@ -12,7 +12,6 @@ export class MySqlGenerator<
   TSchema extends Record<string, unknown> = Record<string, unknown>,
 > extends BaseGenerator<TSchema> {
   protected dialectConfig: DialectConfig = {
-    escapeName: (name: string) => `\`${name}\``,
     isIncrement: (column: AnyColumn) => {
       // MySQL uses autoincrement property
       return (column as unknown as { autoIncrement?: boolean }).autoIncrement === true;
