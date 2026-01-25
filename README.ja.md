@@ -1,6 +1,7 @@
 # drizzle-docs-generator
 
-[![NPM](https://nodei.co/npm/drizzle-docs-generator.svg?style=shields&data=v,d&color=brightgreen)](https://nodei.co/npm/drizzle-docs-generator/)
+[![NPM](https://nodei.co/npm/drizzle-docs-generator.svg?style=shields&data=v,d&color=brightgreen)](https://www.npmjs.com/package/drizzle-docs-generator)
+[![codecov](https://codecov.io/gh/rikeda71/drizzle-docs-generator/branch/main/graph/badge.svg)](https://codecov.io/gh/rikeda71/drizzle-docs-generator)
 
 Drizzle ORM スキーマから DBML と Markdown ドキュメントを生成する CLI。JSDoc コメントを Note 句として出力できる。
 

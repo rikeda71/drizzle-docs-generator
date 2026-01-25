@@ -34,8 +34,18 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      - name: Unit Test
-        run: pnpm test:run
+      - name: Unit Test with Coverage
+        run: pnpm test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Build
         run: pnpm build
