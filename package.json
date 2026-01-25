@@ -53,14 +53,14 @@
   },
   "dependencies": {
     "commander": "^14.0.2",
-    "drizzle-orm": "1.0.0-beta.12-b5a187e",
+    "drizzle-orm": "1.0.0-beta.12-566a3bc",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.7",
     "@vitest/coverage-v8": "^4.0.18",
-    "oxfmt": "^0.24.0",
+    "oxfmt": "^0.26.0",
     "oxlint": "^1.39.0",
     "vite": "^7.3.1",
     "vite-plugin-dts": "^4.5.4",
