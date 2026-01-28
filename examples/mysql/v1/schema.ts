@@ -8,6 +8,7 @@
  * - Uses defineRelations() from drizzle-orm
  * - Cleaner, more modern relation definitions
  * - Supports bidirectional relation queries
+ * - Includes nullable foreign key examples (Issue #117)
  */
 
 import {
@@ -132,6 +133,45 @@ export const postTags = mysqlTable(
   ],
 );
 
+/** Discount coupons */
+export const coupons = mysqlTable("coupons", {
+  /** Auto-generated unique identifier */
+  id: serial("id").primaryKey(),
+  /** Coupon code */
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  /** Discount percentage */
+  discountPercent: int("discount_percent").notNull(),
+});
+
+/** Orders with optional coupon reference */
+export const orders = mysqlTable(
+  "orders",
+  {
+    /** Auto-generated unique identifier */
+    id: serial("id").primaryKey(),
+    /** ID of the user who placed the order */
+    userId: int("user_id").notNull(),
+    /** Optional coupon applied to this order (nullable foreign key) */
+    couponId: int("coupon_id"),
+    /** Total order amount in cents */
+    totalCents: int("total_cents").notNull(),
+    /** Timestamp when the order was created */
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+    }),
+    foreignKey({
+      columns: [table.couponId],
+      foreignColumns: [coupons.id],
+      onDelete: "set null",
+    }),
+    index("orders_user_idx").on(table.userId),
+  ],
+);
+
 // v1 Relations using defineRelations() API
 const schema = {
   users,
@@ -139,12 +179,15 @@ const schema = {
   comments,
   tags,
   postTags,
+  coupons,
+  orders,
 };
 
 export const relationsConfig = defineRelations(schema, (r) => ({
   users: {
     posts: r.many.posts(),
     comments: r.many.comments(),
+    orders: r.many.orders(),
   },
   posts: {
     author: r.one.users({
@@ -175,6 +218,19 @@ export const relationsConfig = defineRelations(schema, (r) => ({
     tag: r.one.tags({
       from: r.postTags.tagId,
       to: r.tags.id,
+    }),
+  },
+  coupons: {
+    orders: r.many.orders(),
+  },
+  orders: {
+    user: r.one.users({
+      from: r.orders.userId,
+      to: r.users.id,
+    }),
+    coupon: r.one.coupons({
+      from: r.orders.couponId,
+      to: r.coupons.id,
     }),
   },
 }));
