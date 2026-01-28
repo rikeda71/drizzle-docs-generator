@@ -275,7 +275,8 @@ describe("MermaidErDiagramFormatter", () => {
       const formatter = new MermaidErDiagramFormatter();
       const mermaid = formatter.format(schema);
 
-      expect(mermaid).toContain('users ||--|| profiles : "profile_id"');
+      // profile_id is nullable, so it should use ||--o| (optional one-to-one)
+      expect(mermaid).toContain('users ||--o| profiles : "profile_id"');
     });
 
     it("should format one-to-many relations", () => {
@@ -583,6 +584,197 @@ describe("MermaidErDiagramFormatter", () => {
       expect(mermaid).toContain("int order_id FK");
       expect(mermaid).toContain("int product_id FK");
       expect(mermaid).toContain(': "order_id, product_id"');
+    });
+
+    it("should use optional one notation for nullable foreign keys in many-to-one relations", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "coupons",
+            columns: [
+              {
+                name: "id",
+                type: "uuid",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "code",
+                type: "text",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+          {
+            name: "orders",
+            columns: [
+              {
+                name: "id",
+                type: "uuid",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "coupon_id",
+                type: "uuid",
+                nullable: true,
+                primaryKey: false,
+                unique: false,
+              },
+              {
+                name: "total_cents",
+                type: "integer",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [
+          {
+            fromTable: "orders",
+            fromColumns: ["coupon_id"],
+            toTable: "coupons",
+            toColumns: ["id"],
+            type: "many-to-one",
+          },
+        ],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      // Should use }o--o| for nullable foreign key (optional one)
+      expect(mermaid).toContain('orders }o--o| coupons : "coupon_id"');
+    });
+
+    it("should use required one notation for non-nullable foreign keys in many-to-one relations", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "users",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+          {
+            name: "posts",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "author_id",
+                type: "integer",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [
+          {
+            fromTable: "posts",
+            fromColumns: ["author_id"],
+            toTable: "users",
+            toColumns: ["id"],
+            type: "many-to-one",
+          },
+        ],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      // Should use }o--|| for non-nullable foreign key (required one)
+      expect(mermaid).toContain('posts }o--|| users : "author_id"');
+    });
+
+    it("should use optional one notation for nullable foreign keys in one-to-one relations", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "users",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+          {
+            name: "profiles",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "user_id",
+                type: "integer",
+                nullable: true,
+                primaryKey: false,
+                unique: true,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [
+          {
+            fromTable: "profiles",
+            fromColumns: ["user_id"],
+            toTable: "users",
+            toColumns: ["id"],
+            type: "one-to-one",
+          },
+        ],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      // Should use ||--o| for nullable foreign key (optional one-to-one)
+      expect(mermaid).toContain('profiles ||--o| users : "user_id"');
     });
   });
 

@@ -74,7 +74,7 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
 
     // Generate relations first (at the top of the diagram)
     for (const relation of schema.relations) {
-      const relationLine = this.formatRelation(relation);
+      const relationLine = this.formatRelation(relation, schema.tables);
       if (relationLine) {
         lines.push(`    ${relationLine}`);
       }
@@ -130,7 +130,7 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
 
     // Generate relations
     for (const relation of relevantRelations) {
-      const relationLine = this.formatRelation(relation);
+      const relationLine = this.formatRelation(relation, relevantTables);
       if (relationLine) {
         lines.push(`    ${relationLine}`);
       }
@@ -167,6 +167,25 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
     }
 
     return fkColumns;
+  }
+
+  /**
+   * Check if a foreign key is nullable
+   *
+   * A foreign key is nullable if all of its columns are nullable
+   */
+  private isForeignKeyNullable(relation: RelationDefinition, tables: TableDefinition[]): boolean {
+    // Find the table that contains the foreign key columns
+    const fromTable = tables.find((t) => t.name === relation.fromTable);
+    if (!fromTable) {
+      return false;
+    }
+
+    // Check if all foreign key columns are nullable
+    return relation.fromColumns.every((colName) => {
+      const column = fromTable.columns.find((c) => c.name === colName);
+      return column?.nullable ?? false;
+    });
   }
 
   /**
@@ -286,14 +305,19 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
    *
    * Mermaid ER diagram relation syntax:
    * - ||--|| : one-to-one
+   * - ||--o| : one-to-one, but target is optional
    * - ||--o{ : one-to-many
    * - }o--|| : many-to-one
+   * - }o--o| : many-to-one, but source is optional
    * - }o--o{ : many-to-many
    */
-  private formatRelation(relation: RelationDefinition): string {
+  private formatRelation(relation: RelationDefinition, tables: TableDefinition[]): string {
     const fromTable = this.escapeName(relation.fromTable);
     const toTable = this.escapeName(relation.toTable);
-    const symbol = this.getRelationSymbol(relation.type);
+
+    // Check if the foreign key columns are nullable
+    const isForeignKeyNullable = this.isForeignKeyNullable(relation, tables);
+    const symbol = this.getRelationSymbol(relation.type, isForeignKeyNullable);
     const label = relation.fromColumns.join(", ");
 
     return `${fromTable} ${symbol} ${toTable} : "${label}"`;
@@ -302,16 +326,22 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
   /**
    * Convert IntermediateRelationType to Mermaid relation symbol
    *
+   * @param type - The relation type
+   * @param isForeignKeyNullable - Whether the foreign key column(s) are nullable
+   *
    * @see https://mermaid.js.org/syntax/entityRelationshipDiagram.html#relationship-syntax
    */
-  private getRelationSymbol(type: RelationDefinition["type"]): string {
+  private getRelationSymbol(
+    type: RelationDefinition["type"],
+    isForeignKeyNullable: boolean = false,
+  ): string {
     switch (type) {
       case "one-to-one":
-        return "||--||";
+        return isForeignKeyNullable ? "||--o|" : "||--||";
       case "one-to-many":
         return "||--o{";
       case "many-to-one":
-        return "}o--||";
+        return isForeignKeyNullable ? "}o--o|" : "}o--||";
       case "many-to-many":
         return "}o--o{";
     }
