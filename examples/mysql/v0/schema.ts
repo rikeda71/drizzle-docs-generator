@@ -10,7 +10,7 @@
  * - Default values (literal and SQL expressions)
  * - JSDoc comments (table and column)
  * - Relations definitions
- * - Nullable foreign keys (Issue #117)
+ * - Nullable foreign keys
  */
 
 import {

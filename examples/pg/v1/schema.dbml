@@ -8,6 +8,28 @@ Table "comments" {
   Note: 'Comments on posts'
 }
 
+Table "coupons" {
+  "id" uuid [primary key, not null, default: `gen_random_uuid()`, note: 'Auto-generated unique identifier']
+  "code" varchar(50) [not null, unique, note: 'Coupon code']
+  "discount_percent" integer [not null, note: 'Discount percentage']
+
+  Note: 'Discount coupons'
+}
+
+Table "orders" {
+  "id" uuid [primary key, not null, default: `gen_random_uuid()`, note: 'Auto-generated unique identifier']
+  "user_id" integer [not null, note: 'ID of the user who placed the order']
+  "coupon_id" uuid [note: 'Optional coupon applied to this order (nullable foreign key)']
+  "total_cents" integer [not null, note: 'Total order amount in cents']
+  "created_at" timestamp [default: `now()`, note: 'Timestamp when the order was created']
+
+  indexes {
+    ("user_id") [name: 'orders_user_idx']
+  }
+
+  Note: 'Orders with optional coupon reference'
+}
+
 Table "post_tags" {
   "post_id" integer [not null, note: 'ID of the post']
   "tag_id" integer [not null, note: 'ID of the tag']
@@ -65,3 +87,5 @@ Ref: "comments"."post_id" > "posts"."id"
 Ref: "comments"."author_id" > "users"."id"
 Ref: "post_tags"."post_id" > "posts"."id"
 Ref: "post_tags"."tag_id" > "tags"."id"
+Ref: "orders"."user_id" > "users"."id"
+Ref: "orders"."coupon_id" > "coupons"."id"

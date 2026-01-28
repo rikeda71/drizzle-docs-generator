@@ -8,7 +8,7 @@
  * - Uses defineRelations() from drizzle-orm
  * - Cleaner, more modern relation definitions
  * - Supports bidirectional relation queries
- * - Includes nullable foreign key examples (Issue #117)
+ * - Includes nullable foreign key examples
  */
 
 import {

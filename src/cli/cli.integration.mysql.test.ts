@@ -34,7 +34,7 @@ describe("MySQL v0 (relations())", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     expect(hasAllTables(result.stdout, EXPECTED_TABLES, '"')).toBe(true);
-    expect(countTables(result.stdout)).toBe(5);
+    expect(countTables(result.stdout)).toBe(7);
     expect(countRefs(result.stdout)).toBeGreaterThan(0);
     expect(hasReference(result.stdout, "posts", "author_id", "users", "id", '"')).toBe(true);
   });
@@ -47,7 +47,7 @@ describe("MySQL v1 (defineRelations())", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     expect(hasAllTables(result.stdout, EXPECTED_TABLES, '"')).toBe(true);
-    expect(countTables(result.stdout)).toBe(5);
+    expect(countTables(result.stdout)).toBe(7);
   });
 
   it("should generate all expected columns for users table", async () => {
