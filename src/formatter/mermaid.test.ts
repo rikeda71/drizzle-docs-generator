@@ -1376,18 +1376,18 @@ describe("MermaidErDiagramFormatter", () => {
       const mermaid = formatter.format(schema);
 
       // Should not contain column definitions
-      expect(mermaid).not.toContain("users {");
-      expect(mermaid).not.toContain("posts {");
-      expect(mermaid).not.toContain("serial id PK");
-      expect(mermaid).not.toContain("text name");
-      expect(mermaid).not.toContain("integer user_id");
+      expect.soft(mermaid).not.toContain("users {");
+      expect.soft(mermaid).not.toContain("posts {");
+      expect.soft(mermaid).not.toContain("serial id PK");
+      expect.soft(mermaid).not.toContain("text name");
+      expect.soft(mermaid).not.toContain("integer user_id");
 
       // Should still contain table names
-      expect(mermaid).toContain("users");
-      expect(mermaid).toContain("posts");
+      expect.soft(mermaid).toContain("users");
+      expect.soft(mermaid).toContain("posts");
 
       // Should still contain relations
-      expect(mermaid).toContain("posts }o--|| users");
+      expect.soft(mermaid).toContain("posts }o--|| users");
     });
 
     it("should include columns when includeColumns is true (default)", () => {
@@ -1424,10 +1424,10 @@ describe("MermaidErDiagramFormatter", () => {
       const mermaid = formatter.format(schema);
 
       // Should contain column definitions
-      expect(mermaid).toContain("users {");
-      expect(mermaid).toContain("serial id PK");
-      expect(mermaid).toContain("varchar email UK");
-      expect(mermaid).toContain("}");
+      expect.soft(mermaid).toContain("users {");
+      expect.soft(mermaid).toContain("serial id PK");
+      expect.soft(mermaid).toContain("varchar email UK");
+      expect.soft(mermaid).toContain("}");
     });
 
     it("should include columns by default when includeColumns is not specified", () => {
@@ -1457,9 +1457,9 @@ describe("MermaidErDiagramFormatter", () => {
       const mermaid = formatter.format(schema);
 
       // Should contain column definitions by default
-      expect(mermaid).toContain("users {");
-      expect(mermaid).toContain("serial id PK");
-      expect(mermaid).toContain("}");
+      expect.soft(mermaid).toContain("users {");
+      expect.soft(mermaid).toContain("serial id PK");
+      expect.soft(mermaid).toContain("}");
     });
 
     it("should maintain relations even when columns are excluded", () => {
@@ -1546,15 +1546,15 @@ describe("MermaidErDiagramFormatter", () => {
       const mermaid = formatter.format(schema);
 
       // Relations should be present
-      expect(mermaid).toContain("posts }o--|| users");
-      expect(mermaid).toContain("comments }o--|| posts");
+      expect.soft(mermaid).toContain("posts }o--|| users");
+      expect.soft(mermaid).toContain("comments }o--|| posts");
 
       // Column definitions should not be present (check for entity block syntax)
-      expect(mermaid).not.toContain("users {");
-      expect(mermaid).not.toContain("posts {");
-      expect(mermaid).not.toContain("comments {");
+      expect.soft(mermaid).not.toContain("users {");
+      expect.soft(mermaid).not.toContain("posts {");
+      expect.soft(mermaid).not.toContain("comments {");
       // Check for closing brace on its own line (entity definition closing)
-      expect(mermaid).not.toMatch(/^\s+\}$/m);
+      expect.soft(mermaid).not.toMatch(/^\s+\}$/m);
     });
   });
 
