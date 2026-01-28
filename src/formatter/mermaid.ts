@@ -14,13 +14,13 @@ export interface MermaidFormatterOptions extends FormatterOptions {
    * Whether to include column types in the diagram
    * @default true
    */
-  includeColumnTypes?: boolean;
+  includeColumnTypes: boolean;
 
   /**
    * Whether to include columns in the diagram
    * @default true
    */
-  includeColumns?: boolean;
+  includeColumns: boolean;
 }
 
 /**
@@ -61,9 +61,9 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
   /**
    * Create a new MermaidErDiagramFormatter
    *
-   * @param options - Formatter options
+   * @param options - Formatter options (all fields are optional and default to true)
    */
-  constructor(options: MermaidFormatterOptions = {}) {
+  constructor(options: Partial<MermaidFormatterOptions> = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
   }
 
