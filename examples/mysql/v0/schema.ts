@@ -10,6 +10,7 @@
  * - Default values (literal and SQL expressions)
  * - JSDoc comments (table and column)
  * - Relations definitions
+ * - Nullable foreign keys
  */
 
 import {
@@ -134,11 +135,51 @@ export const postTags = mysqlTable(
   ],
 );
 
+/** Discount coupons */
+export const coupons = mysqlTable("coupons", {
+  /** Auto-generated unique identifier */
+  id: serial("id").primaryKey(),
+  /** Coupon code */
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  /** Discount percentage */
+  discountPercent: int("discount_percent").notNull(),
+});
+
+/** Orders with optional coupon reference */
+export const orders = mysqlTable(
+  "orders",
+  {
+    /** Auto-generated unique identifier */
+    id: serial("id").primaryKey(),
+    /** ID of the user who placed the order */
+    userId: int("user_id").notNull(),
+    /** Optional coupon applied to this order (nullable foreign key) */
+    couponId: int("coupon_id"),
+    /** Total order amount in cents */
+    totalCents: int("total_cents").notNull(),
+    /** Timestamp when the order was created */
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+    }),
+    foreignKey({
+      columns: [table.couponId],
+      foreignColumns: [coupons.id],
+      onDelete: "set null",
+    }),
+    index("orders_user_idx").on(table.userId),
+  ],
+);
+
 // Relations definitions for Drizzle ORM relational queries
 
 export const usersRelations = relations(users, ({ many }) => ({
   posts: many(posts),
   comments: many(comments),
+  orders: many(orders),
 }));
 
 export const postsRelations = relations(posts, ({ one, many }) => ({
@@ -173,5 +214,20 @@ export const postTagsRelations = relations(postTags, ({ one }) => ({
   tag: one(tags, {
     fields: [postTags.tagId],
     references: [tags.id],
+  }),
+}));
+
+export const couponsRelations = relations(coupons, ({ many }) => ({
+  orders: many(orders),
+}));
+
+export const ordersRelations = relations(orders, ({ one }) => ({
+  user: one(users, {
+    fields: [orders.userId],
+    references: [users.id],
+  }),
+  coupon: one(coupons, {
+    fields: [orders.couponId],
+    references: [coupons.id],
   }),
 }));

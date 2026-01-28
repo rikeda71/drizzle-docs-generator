@@ -8,7 +8,7 @@ User accounts table storing basic user information
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 |------|------|---------|----------|----------|---------|---------|
-| **id** | integer | - | NO | [posts.author_id](./posts.md), [comments.author_id](./comments.md) | - | Auto-generated unique identifier |
+| **id** | integer | - | NO | [posts.author_id](./posts.md), [comments.author_id](./comments.md), [orders.user_id](./orders.md) | - | Auto-generated unique identifier |
 | name | text | - | NO | - | - | User's display name |
 | email | text | - | NO | - | - | Email address (must be unique) |
 | active | integer | `true` | YES | - | - | Whether the user account is active |
@@ -26,3 +26,4 @@ User accounts table storing basic user information
 |--------|-------|------|
 | **[users.id](./users.md)** | [posts.author_id](./posts.md) | Many to One |
 | **[users.id](./users.md)** | [comments.author_id](./comments.md) | Many to One |
+| **[users.id](./users.md)** | [orders.user_id](./orders.md) | Many to One |

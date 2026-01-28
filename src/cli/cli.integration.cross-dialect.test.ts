@@ -26,9 +26,9 @@ describe("Cross-Dialect Consistency (v1 API)", () => {
     expect(mysqlResult.exitCode).toBe(0);
     expect(sqliteResult.exitCode).toBe(0);
 
-    expect(countTables(pgResult.stdout)).toBe(5);
-    expect(countTables(mysqlResult.stdout)).toBe(5);
-    expect(countTables(sqliteResult.stdout)).toBe(5);
+    expect(countTables(pgResult.stdout)).toBe(7);
+    expect(countTables(mysqlResult.stdout)).toBe(7);
+    expect(countTables(sqliteResult.stdout)).toBe(7);
   });
 
   it("should generate references across all dialects", async () => {

@@ -3,6 +3,8 @@
 | Name | Columns | Comment |
 |------|---------|---------|
 | [comments](./comments.md) | 5 | Comments on posts |
+| [coupons](./coupons.md) | 3 | Discount coupons |
+| [orders](./orders.md) | 5 | Orders with optional coupon reference |
 | [post_tags](./post_tags.md) | 2 | Join table for many-to-many relationship between posts and tags |
 | [posts](./posts.md) | 6 | Blog posts created by users |
 | [tags](./tags.md) | 3 | Tags for categorizing posts |
@@ -19,6 +21,8 @@ erDiagram
     comments }o--|| users : "author_id"
     post_tags }o--|| posts : "post_id"
     post_tags }o--|| tags : "tag_id"
+    orders }o--|| users : "user_id"
+    orders }o--o| coupons : "coupon_id"
 
     comments {
         int id PK "Auto-generated unique identifier"
@@ -26,6 +30,18 @@ erDiagram
         int post_id FK "ID of the post this comment belongs to"
         int author_id FK "ID of the user who wrote the comment"
         int created_at "Timestamp when the comment was created (stored as unix timestamp)"
+    }
+    coupons {
+        int id PK "Auto-generated unique identifier"
+        text code UK "Coupon code"
+        int discount_percent "Discount percentage"
+    }
+    orders {
+        int id PK "Auto-generated unique identifier"
+        int user_id FK "ID of the user who placed the order"
+        int coupon_id FK "Optional coupon applied to this order (nullable foreign key)"
+        int total_cents "Total order amount in cents"
+        int created_at "Timestamp when the order was created"
     }
     post_tags {
         int post_id FK "ID of the post"

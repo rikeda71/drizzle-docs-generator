@@ -19,7 +19,15 @@ export const SQLITE_SCHEMA_V1 = join(EXAMPLES_DIR, "sqlite/v1/schema.ts");
 export const TEST_OUTPUT_DIR = join(import.meta.dirname, "__integration_test_output__");
 
 // Expected table names in all schemas
-export const EXPECTED_TABLES = ["users", "posts", "comments", "tags", "post_tags"];
+export const EXPECTED_TABLES = [
+  "users",
+  "posts",
+  "comments",
+  "tags",
+  "post_tags",
+  "coupons",
+  "orders",
+];
 
 /**
  * Setup function to ensure example schemas exist and create output directory.
