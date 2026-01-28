@@ -15,6 +15,12 @@ export interface MermaidFormatterOptions extends FormatterOptions {
    * @default true
    */
   includeColumnTypes?: boolean;
+
+  /**
+   * Whether to include columns in the diagram
+   * @default true
+   */
+  includeColumns?: boolean;
 }
 
 /**
@@ -25,6 +31,7 @@ const DEFAULT_OPTIONS: Required<MermaidFormatterOptions> = {
   includeIndexes: true,
   includeConstraints: true,
   includeColumnTypes: true,
+  includeColumns: true,
 };
 
 /**
@@ -194,6 +201,13 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
   private formatTable(table: TableDefinition, fkColumns: Map<string, Set<string>>): string[] {
     const lines: string[] = [];
     const tableName = this.escapeName(table.name);
+
+    // If columns are not included, return table name only (without braces)
+    if (!this.options.includeColumns) {
+      lines.push(`    ${tableName}`);
+      return lines;
+    }
+
     const tableFkColumns = fkColumns.get(table.name) || new Set();
 
     lines.push(`    ${tableName} {`);
