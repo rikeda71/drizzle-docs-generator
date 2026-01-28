@@ -1312,6 +1312,252 @@ describe("MermaidErDiagramFormatter", () => {
     });
   });
 
+  describe("includeColumns option", () => {
+    it("should exclude columns when includeColumns is false", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "users",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "name",
+                type: "text",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+          {
+            name: "posts",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "user_id",
+                type: "integer",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [
+          {
+            fromTable: "posts",
+            fromColumns: ["user_id"],
+            toTable: "users",
+            toColumns: ["id"],
+            type: "many-to-one",
+          },
+        ],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter({ includeColumns: false });
+      const mermaid = formatter.format(schema);
+
+      // Should not contain column definitions
+      expect.soft(mermaid).not.toContain("users {");
+      expect.soft(mermaid).not.toContain("posts {");
+      expect.soft(mermaid).not.toContain("serial id PK");
+      expect.soft(mermaid).not.toContain("text name");
+      expect.soft(mermaid).not.toContain("integer user_id");
+
+      // Should still contain table names
+      expect.soft(mermaid).toContain("users");
+      expect.soft(mermaid).toContain("posts");
+
+      // Should still contain relations
+      expect.soft(mermaid).toContain("posts }o--|| users");
+    });
+
+    it("should include columns when includeColumns is true (default)", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "users",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "email",
+                type: "varchar(255)",
+                nullable: false,
+                primaryKey: false,
+                unique: true,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter({ includeColumns: true });
+      const mermaid = formatter.format(schema);
+
+      // Should contain column definitions
+      expect.soft(mermaid).toContain("users {");
+      expect.soft(mermaid).toContain("serial id PK");
+      expect.soft(mermaid).toContain("varchar email UK");
+      expect.soft(mermaid).toContain("}");
+    });
+
+    it("should include columns by default when includeColumns is not specified", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "users",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter();
+      const mermaid = formatter.format(schema);
+
+      // Should contain column definitions by default
+      expect.soft(mermaid).toContain("users {");
+      expect.soft(mermaid).toContain("serial id PK");
+      expect.soft(mermaid).toContain("}");
+    });
+
+    it("should maintain relations even when columns are excluded", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "users",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+          {
+            name: "posts",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "user_id",
+                type: "integer",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+          {
+            name: "comments",
+            columns: [
+              {
+                name: "id",
+                type: "serial",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "post_id",
+                type: "integer",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [
+          {
+            fromTable: "posts",
+            fromColumns: ["user_id"],
+            toTable: "users",
+            toColumns: ["id"],
+            type: "many-to-one",
+          },
+          {
+            fromTable: "comments",
+            fromColumns: ["post_id"],
+            toTable: "posts",
+            toColumns: ["id"],
+            type: "many-to-one",
+          },
+        ],
+        enums: [],
+      };
+
+      const formatter = new MermaidErDiagramFormatter({ includeColumns: false });
+      const mermaid = formatter.format(schema);
+
+      // Relations should be present
+      expect.soft(mermaid).toContain("posts }o--|| users");
+      expect.soft(mermaid).toContain("comments }o--|| posts");
+
+      // Column definitions should not be present (check for entity block syntax)
+      expect.soft(mermaid).not.toContain("users {");
+      expect.soft(mermaid).not.toContain("posts {");
+      expect.soft(mermaid).not.toContain("comments {");
+      // Check for closing brace on its own line (entity definition closing)
+      expect.soft(mermaid).not.toMatch(/^\s+\}$/m);
+    });
+  });
+
   describe("OutputFormatter interface", () => {
     it("should implement OutputFormatter interface", () => {
       const formatter = new MermaidErDiagramFormatter();

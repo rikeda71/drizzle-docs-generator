@@ -54,6 +54,7 @@ interface GenerateCommandOptions {
   format: OutputFormat;
   singleFile?: boolean;
   erDiagram: boolean; // commander uses --no-er-diagram which sets erDiagram to false
+  columns: boolean; // commander uses --no-columns which sets columns to false
   force?: boolean; // skip overwrite confirmation for existing files
 }
 
@@ -236,7 +237,9 @@ function generateMarkdownOutput(
 
   // Include ER diagram unless --no-er-diagram is specified
   if (options.erDiagram) {
-    const mermaidFormatter = new MermaidErDiagramFormatter();
+    const mermaidFormatter = new MermaidErDiagramFormatter({
+      includeColumns: options.columns,
+    });
     const erDiagram = mermaidFormatter.format(intermediateSchema);
 
     return `${markdown}\n\n---\n\n## ER Diagram\n\n\`\`\`mermaid\n${erDiagram}\n\`\`\``;
@@ -264,7 +267,9 @@ function writeMarkdownMultipleFiles(
 
   // Add ER diagram to README unless disabled
   if (options.erDiagram) {
-    const mermaidFormatter = new MermaidErDiagramFormatter();
+    const mermaidFormatter = new MermaidErDiagramFormatter({
+      includeColumns: options.columns,
+    });
     const erDiagram = mermaidFormatter.format(intermediateSchema);
     readme += `\n---\n\n## ER Diagram\n\n\`\`\`mermaid\n${erDiagram}\n\`\`\`\n`;
   }
@@ -454,6 +459,7 @@ program
   .option("-w, --watch", "Watch for file changes and regenerate")
   .option("--single-file", "Output Markdown as a single file (for markdown format)")
   .option("--no-er-diagram", "Exclude ER diagram from Markdown output")
+  .option("--no-columns", "Exclude columns from Mermaid ER diagram")
   .option("--force", "Overwrite existing files without confirmation")
   .action(async (schema: string, options: GenerateCommandOptions) => {
     // Validate dialect
@@ -474,13 +480,16 @@ program
       process.exit(1);
     }
 
-    // Warn if --single-file or --no-er-diagram used with non-markdown format
+    // Warn if --single-file, --no-er-diagram, or --no-columns used with non-markdown format
     if (options.format !== "markdown") {
       if (options.singleFile) {
         console.warn("Warning: --single-file is only applicable with --format markdown");
       }
       if (!options.erDiagram) {
         console.warn("Warning: --no-er-diagram is only applicable with --format markdown");
+      }
+      if (!options.columns) {
+        console.warn("Warning: --no-columns is only applicable with --format markdown");
       }
     }
 
