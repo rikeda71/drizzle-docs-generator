@@ -27,10 +27,16 @@ import { SqliteGenerator } from "../generator/sqlite";
 import { MarkdownFormatter } from "../formatter/markdown";
 import { MermaidErDiagramFormatter } from "../formatter/mermaid";
 import { register } from "tsx/esm/api";
+import { register as registerCjs } from "tsx/cjs/api";
 import type { IntermediateSchema } from "../types";
+import { resolveSchemaExports } from "./resolve-schema-exports";
 
-// Register tsx loader to support TypeScript and extensionless imports
+// Register both ESM and CJS tsx loader hooks.
+// ESM hooks handle import() calls, CJS hooks handle require() calls.
+// Both are needed to prevent "Cannot require() ES Module in a cycle" errors
+// that occur in ESM projects (e.g., NestJS) where require(esm) creates cycles.
 const unregister = register();
+const unregisterCjs = registerCjs();
 
 const program = new Command();
 
@@ -127,7 +133,8 @@ async function generateFromSchema(
 
   // Dynamic import with cache busting for watch mode
   const cacheBuster = options.watch ? `?t=${Date.now()}` : "";
-  const schemaModule = (await import(schemaUrl + cacheBuster)) as Record<string, unknown>;
+  const rawModule = (await import(schemaUrl + cacheBuster)) as Record<string, unknown>;
+  const schemaModule = resolveSchemaExports(rawModule);
 
   if (options.format === "markdown") {
     const GeneratorClass = getGeneratorClass(options.dialect);
@@ -308,8 +315,8 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
       const cacheBuster = options.watch ? `?t=${Date.now()}` : "";
 
       try {
-        const schemaModule = (await import(schemaUrl + cacheBuster)) as Record<string, unknown>;
-        Object.assign(mergedSchema, schemaModule);
+        const rawModule = (await import(schemaUrl + cacheBuster)) as Record<string, unknown>;
+        Object.assign(mergedSchema, resolveSchemaExports(rawModule));
       } catch (error) {
         if (error instanceof Error) {
           console.error(`Error importing ${schemaPath}: ${error.message}`);
@@ -504,7 +511,8 @@ program
 
 program.parse();
 
-// Cleanup: Unregister tsx loader when process exits
+// Cleanup: Unregister tsx loaders when process exits
 process.on("exit", () => {
   unregister();
+  unregisterCjs();
 });
