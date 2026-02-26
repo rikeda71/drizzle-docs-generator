@@ -710,6 +710,45 @@ describe("DbmlFormatter", () => {
     });
   });
 
+  describe("timestamp with time zone normalization", () => {
+    it.each([
+      { input: "timestamp with time zone", expected: "timestamptz" },
+      { input: "timestamp(3) with time zone", expected: "timestamptz(3)" },
+      { input: "timestamp (3) with time zone", expected: "timestamptz(3)" },
+      { input: "time with time zone", expected: "timetz" },
+      { input: "time(3) with time zone", expected: "timetz(3)" },
+      { input: "timestamp", expected: "timestamp" },
+      { input: "timestamp(3)", expected: "timestamp(3)" },
+    ])("should normalize '$input' to '$expected'", ({ input, expected }) => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "col",
+                type: input,
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain(`"col" ${expected}`);
+    });
+  });
+
   describe("OutputFormatter interface", () => {
     it("should implement OutputFormatter interface", () => {
       const formatter = new DbmlFormatter();

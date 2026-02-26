@@ -118,7 +118,7 @@ export class DbmlFormatter implements OutputFormatter {
    */
   private formatColumn(dbml: DbmlBuilder, column: ColumnDefinition): void {
     const name = this.escapeName(column.name);
-    const type = column.type;
+    const type = this.normalizeType(column.type);
     const attrs = this.getColumnAttributes(column);
     const attrStr = attrs.join(", ");
 
@@ -305,6 +305,23 @@ export class DbmlFormatter implements OutputFormatter {
       case "many-to-many":
         return "<>";
     }
+  }
+
+  /**
+   * Normalize SQL type for DBML compatibility
+   *
+   * Converts types with "with time zone" suffix to their short form
+   * (e.g., "timestamp(3) with time zone" -> "timestamptz(3)")
+   * because DBML parsers cannot handle the multi-word suffix.
+   */
+  private normalizeType(type: string): string {
+    return type
+      .replace(/^(timestamp)\s*(\([^)]*\))?\s+with time zone$/i, (_match, _base, precision) =>
+        precision ? `timestamptz${precision}` : "timestamptz",
+      )
+      .replace(/^(time)\s*(\([^)]*\))?\s+with time zone$/i, (_match, _base, precision) =>
+        precision ? `timetz${precision}` : "timetz",
+      );
   }
 
   /**
