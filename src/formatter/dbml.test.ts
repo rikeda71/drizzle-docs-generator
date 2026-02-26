@@ -710,6 +710,216 @@ describe("DbmlFormatter", () => {
     });
   });
 
+  describe("timestamp with time zone normalization", () => {
+    it("should normalize 'timestamp with time zone' to 'timestamptz'", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "created_at",
+                type: "timestamp with time zone",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain('"created_at" timestamptz');
+      expect(dbml).not.toContain("with time zone");
+    });
+
+    it("should normalize 'timestamp(3) with time zone' to 'timestamptz(3)'", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "created_at",
+                type: "timestamp(3) with time zone",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain('"created_at" timestamptz(3)');
+      expect(dbml).not.toContain("with time zone");
+    });
+
+    it("should normalize 'timestamp (3) with time zone' with space before precision", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "created_at",
+                type: "timestamp (3) with time zone",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain('"created_at" timestamptz(3)');
+      expect(dbml).not.toContain("with time zone");
+    });
+
+    it("should normalize 'time with time zone' to 'timetz'", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "event_time",
+                type: "time with time zone",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain('"event_time" timetz');
+      expect(dbml).not.toContain("with time zone");
+    });
+
+    it("should normalize 'time(3) with time zone' to 'timetz(3)'", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "event_time",
+                type: "time(3) with time zone",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain('"event_time" timetz(3)');
+      expect(dbml).not.toContain("with time zone");
+    });
+
+    it("should not modify regular timestamp without time zone", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "created_at",
+                type: "timestamp",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain('"created_at" timestamp');
+    });
+
+    it("should not modify timestamp with precision but without time zone", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "events",
+            columns: [
+              {
+                name: "created_at",
+                type: "timestamp(3)",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [],
+        enums: [],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain('"created_at" timestamp(3)');
+    });
+  });
+
   describe("OutputFormatter interface", () => {
     it("should implement OutputFormatter interface", () => {
       const formatter = new DbmlFormatter();
