@@ -53,16 +53,16 @@
   },
   "dependencies": {
     "commander": "^14.0.3",
-    "drizzle-orm": "1.0.0-beta.16-2ffd1a5",
+    "drizzle-orm": "1.0.0-beta.18-5ffac6d",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.7",
     "@vitest/coverage-v8": "^4.0.18",
-    "oxfmt": "^0.36.0",
+    "oxfmt": "^0.40.0",
     "oxlint": "^1.42.0",
-    "vite": "^7.3.1",
+    "vite": "^8.0.0",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.0.18"
   },
