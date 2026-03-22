@@ -38,7 +38,7 @@ jobs:
 
       - name: Setup pnpm
         if: steps.check-tag.outputs.exists == 'false'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Setup Node.js
         if: steps.check-tag.outputs.exists == 'false'
