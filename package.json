@@ -52,15 +52,15 @@
     "prepublishOnly": "pnpm run format && pnpm run lint && pnpm run typecheck && pnpm run test:run && pnpm run build"
   },
   "dependencies": {
-    "commander": "^14.0.3",
-    "drizzle-orm": "1.0.0-rc.2-203eab8",
+    "commander": "^15.0.0",
+    "drizzle-orm": "1.0.0-rc.4-273829f",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   },
   "devDependencies": {
     "@types/node": "^24.10.7",
     "@vitest/coverage-v8": "^4.0.18",
-    "oxfmt": "^0.47.0",
+    "oxfmt": "^0.52.0",
     "oxlint": "^1.42.0",
     "vite": "^8.0.0",
     "vite-plugin-dts": "^5.0.0",
