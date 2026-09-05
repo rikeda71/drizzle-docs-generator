@@ -12,6 +12,7 @@ import {
   foreignKey,
   unique,
   index,
+  snakeCase,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm/_relations";
 import type { SchemaComments } from "../parser/comments";
@@ -819,6 +820,34 @@ export const users = pgTable("users", {
     expect(dbml).toContain("Note: 'Users table with account info'");
     expect(dbml).toContain("note: 'Auto-generated ID'");
     expect(dbml).toContain("note: 'Full name'");
+  });
+
+  it("should extract comments for tables defined via snakeCase.table (v1 casing helper)", () => {
+    const schemaCode = `
+import { integer, snakeCase } from "drizzle-orm/pg-core";
+
+/** brands table */
+export const bikeBrandsTable = snakeCase.table("bike_brands", {
+  /** unique code of the brand */
+  code: integer().notNull().unique(),
+  /** owner of the brand */
+  ownerId: integer(),
+});
+`;
+    const filePath = join(TEST_DIR, "schema-snake-case-comments.ts");
+    writeFileSync(filePath, schemaCode);
+
+    const bikeBrandsTable = snakeCase.table("bike_brands", {
+      code: integer().notNull().unique(),
+      ownerId: integer(),
+    });
+
+    const dbml = pgGenerate({ schema: { bikeBrandsTable }, source: filePath });
+
+    expect(dbml).toContain('Table "bike_brands" {');
+    expect(dbml).toContain("Note: 'brands table'");
+    expect(dbml).toContain("\"code\" integer [not null, unique, note: 'unique code of the brand']");
+    expect(dbml).toContain("\"owner_id\" integer [note: 'owner of the brand']");
   });
 
   it("should escape special characters in comments", () => {

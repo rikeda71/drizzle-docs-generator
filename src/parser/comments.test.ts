@@ -450,3 +450,302 @@ export const users = pgTable("users", {
     });
   });
 });
+
+describe("extractComments with Drizzle v1 table helpers", () => {
+  beforeAll(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterAll(() => {
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  describe("Casing helpers (snakeCase.table / camelCase.table)", () => {
+    it("should extract comments from snakeCase.table and convert keys to snake_case", () => {
+      const schemaCode = `
+import { integer, snakeCase } from "drizzle-orm/pg-core";
+
+/** brands table */
+export const bikeBrandsTable = snakeCase.table("bike_brands", {
+  /** unique code of the brand */
+  code: integer().notNull().unique(),
+  /** owner of the brand */
+  ownerId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-snake-case-table.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.bike_brands).toBeDefined();
+      expect(comments.tables.bike_brands.comment).toBe("brands table");
+      expect(comments.tables.bike_brands.columns.code?.comment).toBe("unique code of the brand");
+      expect(comments.tables.bike_brands.columns.owner_id?.comment).toBe("owner of the brand");
+      expect(comments.tables.bike_brands.columns.ownerId).toBeUndefined();
+    });
+
+    it("should extract comments from camelCase.table and convert keys to camelCase", () => {
+      const schemaCode = `
+import { integer, camelCase } from "drizzle-orm/pg-core";
+
+/** brands table */
+export const brands = camelCase.table("brands", {
+  /** owner of the brand */
+  owner_id: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-camel-case-table.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.brands.comment).toBe("brands table");
+      expect(comments.tables.brands.columns.ownerId?.comment).toBe("owner of the brand");
+    });
+
+    it("should prefer an explicit column name over the casing-converted key", () => {
+      const schemaCode = `
+import { integer, snakeCase } from "drizzle-orm/pg-core";
+
+export const brands = snakeCase.table("brands", {
+  /** explicit name wins */
+  ownerId: integer("owner"),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-snake-case-explicit-name.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.brands.columns.owner?.comment).toBe("explicit name wins");
+      expect(comments.tables.brands.columns.owner_id).toBeUndefined();
+    });
+
+    it("should support import aliases of casing helpers", () => {
+      const schemaCode = `
+import { integer, snakeCase as sc } from "drizzle-orm/pg-core";
+
+/** aliased table */
+export const brands = sc.table("brands", {
+  /** owner of the brand */
+  ownerId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-snake-case-alias.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.brands.comment).toBe("aliased table");
+      expect(comments.tables.brands.columns.owner_id?.comment).toBe("owner of the brand");
+    });
+
+    it("should handle withRLS on casing helpers", () => {
+      const schemaCode = `
+import { integer, snakeCase } from "drizzle-orm/pg-core";
+
+/** RLS table */
+export const brands = snakeCase.table.withRLS("brands", {
+  /** owner of the brand */
+  ownerId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-snake-case-rls.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.brands.comment).toBe("RLS table");
+      expect(comments.tables.brands.columns.owner_id?.comment).toBe("owner of the brand");
+    });
+
+    it("should handle MySQL and SQLite casing helpers", () => {
+      const schemaCode = `
+import { int, snakeCase as mysqlSnakeCase } from "drizzle-orm/mysql-core";
+import { integer, camelCase as sqliteCamelCase } from "drizzle-orm/sqlite-core";
+
+/** MySQL brands */
+export const mysqlBrands = mysqlSnakeCase.table("mysql_brands", {
+  /** MySQL owner */
+  ownerId: int(),
+});
+
+/** SQLite brands */
+export const sqliteBrands = sqliteCamelCase.table("sqlite_brands", {
+  /** SQLite owner */
+  owner_id: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-casing-other-dialects.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.mysql_brands.comment).toBe("MySQL brands");
+      expect(comments.tables.mysql_brands.columns.owner_id?.comment).toBe("MySQL owner");
+      expect(comments.tables.sqlite_brands.comment).toBe("SQLite brands");
+      expect(comments.tables.sqlite_brands.columns.ownerId?.comment).toBe("SQLite owner");
+    });
+  });
+
+  describe("Schema helpers (pgSchema / snakeCase.schema)", () => {
+    it("should extract comments from pgSchema(...).table without casing conversion", () => {
+      const schemaCode = `
+import { integer, pgSchema } from "drizzle-orm/pg-core";
+
+export const auth = pgSchema("auth");
+
+/** Auth users */
+export const users = auth.table("users", {
+  /** user's id */
+  userId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-pg-schema.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users.comment).toBe("Auth users");
+      expect(comments.tables.users.columns.userId?.comment).toBe("user's id");
+    });
+
+    it("should apply casing from a schema variable created with snakeCase.schema", () => {
+      const schemaCode = `
+import { integer, snakeCase } from "drizzle-orm/pg-core";
+
+export const auth = snakeCase.schema("auth");
+
+/** Auth users */
+export const users = auth.table("users", {
+  /** user's id */
+  userId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-snake-case-schema-variable.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users.comment).toBe("Auth users");
+      expect(comments.tables.users.columns.user_id?.comment).toBe("user's id");
+    });
+
+    it("should apply casing from an inline camelCase.schema(...).table call", () => {
+      const schemaCode = `
+import { integer, camelCase } from "drizzle-orm/pg-core";
+
+/** Auth users */
+export const users = camelCase.schema("auth").table("users", {
+  /** user's id */
+  user_id: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-camel-case-schema-inline.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users.comment).toBe("Auth users");
+      expect(comments.tables.users.columns.userId?.comment).toBe("user's id");
+    });
+
+    it("should resolve a schema variable declared in another file of a directory", () => {
+      const schemaDir = join(TEST_DIR, "v1-schema-dir");
+      mkdirSync(schemaDir, { recursive: true });
+      // The table file sorts before the schema file on purpose:
+      // the schema variable must be resolvable regardless of the file order
+      writeFileSync(
+        join(schemaDir, "a-tables.ts"),
+        `
+import { integer } from "drizzle-orm/pg-core";
+import { auth } from "./z-schema";
+
+/** Auth users */
+export const users = auth.table("users", {
+  /** user's id */
+  userId: integer(),
+});
+`,
+      );
+      writeFileSync(
+        join(schemaDir, "z-schema.ts"),
+        `
+import { snakeCase } from "drizzle-orm/pg-core";
+
+export const auth = snakeCase.schema("auth");
+`,
+      );
+
+      const comments = extractComments(schemaDir);
+
+      expect(comments.tables.users.comment).toBe("Auth users");
+      expect(comments.tables.users.columns.user_id?.comment).toBe("user's id");
+    });
+  });
+
+  describe("Columns without explicit names", () => {
+    it("should use the property key as-is for pgTable columns without a name", () => {
+      const schemaCode = `
+import { pgTable, serial, varchar, timestamp } from "drizzle-orm/pg-core";
+
+export const users = pgTable("users", {
+  /** Primary key */
+  id: serial().primaryKey(),
+  /** Display name */
+  displayName: varchar({ length: 100 }).notNull(),
+  /** Creation time */
+  createdAt: timestamp({ mode: "date" }).defaultNow(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-keyless-columns.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users.columns.id?.comment).toBe("Primary key");
+      expect(comments.tables.users.columns.displayName?.comment).toBe("Display name");
+      expect(comments.tables.users.columns.createdAt?.comment).toBe("Creation time");
+    });
+
+    it("should handle withRLS on pgTable without casing conversion", () => {
+      const schemaCode = `
+import { pgTable, integer } from "drizzle-orm/pg-core";
+
+/** RLS table */
+export const users = pgTable.withRLS("users", {
+  /** user's id */
+  userId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-pg-table-rls.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users.comment).toBe("RLS table");
+      expect(comments.tables.users.columns.userId?.comment).toBe("user's id");
+    });
+
+    it("should skip columns whose name is not statically known", () => {
+      const schemaCode = `
+import { pgTable, integer } from "drizzle-orm/pg-core";
+
+const dynamicName = "computed";
+
+export const users = pgTable("users", {
+  /** Unknown name */
+  id: integer(dynamicName),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-dynamic-column-name.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users).toBeDefined();
+      expect(Object.keys(comments.tables.users.columns)).toHaveLength(0);
+    });
+  });
+});
