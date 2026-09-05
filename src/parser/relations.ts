@@ -28,6 +28,14 @@ export interface SchemaRelations {
 /**
  * Get all TypeScript files from a path (file or directory)
  */
+/**
+ * Directories that never contain user schema files and must not be scanned
+ * (dependencies and hidden directories such as .git)
+ */
+function isIgnoredDirectory(name: string): boolean {
+  return name === "node_modules" || name.startsWith(".");
+}
+
 function getTypeScriptFiles(sourcePath: string): string[] {
   const stat = statSync(sourcePath);
 
@@ -42,6 +50,9 @@ function getTypeScriptFiles(sourcePath: string): string[] {
     for (const entry of entries) {
       const fullPath = join(sourcePath, entry.name);
       if (entry.isDirectory()) {
+        if (isIgnoredDirectory(entry.name)) {
+          continue;
+        }
         files.push(...getTypeScriptFiles(fullPath));
       } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
         files.push(fullPath);

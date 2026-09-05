@@ -105,6 +105,64 @@ describe("Markdown Format Output", () => {
     rmSync(outputDir, { recursive: true, force: true });
   });
 
+  it("should output enums.md and link it from README.md in multi-file output (#158)", async () => {
+    const outputDir = join(TEST_OUTPUT_DIR, "multi-file-enums-output");
+
+    const result = await runGenerate(PG_SCHEMA_V1, "postgresql", {
+      format: "markdown",
+      output: outputDir,
+    });
+
+    expect(result.exitCode).toBe(0);
+
+    const enumsPath = join(outputDir, "enums.md");
+    expect(existsSync(enumsPath)).toBe(true);
+
+    const enumsContent = readFileSync(enumsPath, "utf-8");
+    expect(enumsContent).toContain("# Enums");
+    expect(enumsContent).toContain("## order_status");
+    expect(enumsContent).toContain("Lifecycle status of an order");
+    expect(enumsContent).toContain("| Value | Comment |");
+    expect(enumsContent).toContain("| pending | Order has been placed but not yet paid |");
+    expect(enumsContent).toContain("| cancelled | Order was cancelled by the user or the shop |");
+
+    const readmeContent = readFileSync(join(outputDir, "README.md"), "utf-8");
+    expect(readmeContent).toContain("# Enums");
+    expect(readmeContent).toContain("[order_status](./enums.md#order_status)");
+
+    rmSync(outputDir, { recursive: true, force: true });
+  });
+
+  it("should not output enums.md when the schema has no enums", async () => {
+    const outputDir = join(TEST_OUTPUT_DIR, "multi-file-no-enums-output");
+
+    const result = await runGenerate(MYSQL_SCHEMA_V1, "mysql", {
+      format: "markdown",
+      output: outputDir,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(join(outputDir, "README.md"))).toBe(true);
+    expect(existsSync(join(outputDir, "enums.md"))).toBe(false);
+
+    const readmeContent = readFileSync(join(outputDir, "README.md"), "utf-8");
+    expect(readmeContent).not.toContain("# Enums");
+
+    rmSync(outputDir, { recursive: true, force: true });
+  });
+
+  it("should include enum comments in single-file Markdown output", async () => {
+    const result = await runGenerate(PG_SCHEMA_V1, "postgresql", {
+      format: "markdown",
+      singleFile: true,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("## order_status");
+    expect(result.stdout).toContain("Lifecycle status of an order");
+    expect(result.stdout).toContain("| paid | Payment confirmed |");
+  });
+
   it("should auto-detect defineRelations() and generate Markdown with relations", async () => {
     const result = await runGenerate(PG_SCHEMA_V1, "postgresql", {
       format: "markdown",

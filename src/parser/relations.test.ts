@@ -14,6 +14,29 @@ describe("extractRelations", () => {
     rmSync(TEST_DIR, { recursive: true, force: true });
   });
 
+  it("should skip node_modules and hidden directories when given a directory", () => {
+    const dir = join(TEST_DIR, "dir-input");
+    mkdirSync(join(dir, "node_modules", "some-pkg"), { recursive: true });
+    mkdirSync(join(dir, ".hidden"), { recursive: true });
+
+    const relationCode = (source: string, target: string) => `
+import { relations } from "drizzle-orm";
+export const ${source}Relations = relations(${source}, ({ one }) => ({
+  target: one(${target}, { fields: [${source}.targetId], references: [${target}.id] }),
+}));
+`;
+    writeFileSync(join(dir, "schema.ts"), relationCode("posts", "users"));
+    writeFileSync(
+      join(dir, "node_modules", "some-pkg", "schema.ts"),
+      relationCode("vendored", "users"),
+    );
+    writeFileSync(join(dir, ".hidden", "schema.ts"), relationCode("hidden", "users"));
+
+    const result = extractRelations(dir);
+
+    expect(result.relations.map((r) => r.sourceTable)).toEqual(["posts"]);
+  });
+
   it("should extract one() relation with fields and references", () => {
     const schemaCode = `
 import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";

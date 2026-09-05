@@ -502,6 +502,82 @@ describe("DbmlFormatter", () => {
       expect(dbml).toContain("pending");
     });
 
+    it("should include enum comments as line comment and value notes", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [],
+        relations: [],
+        enums: [
+          {
+            name: "user_status",
+            values: ["active", "inactive", "pending"],
+            comment: "Account status\nSecond line",
+            valueComments: {
+              active: "Account is active",
+              inactive: "It's disabled",
+            },
+          },
+        ],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain('// Account status\n// Second line\nEnum "user_status" {');
+      expect(dbml).toContain("  active [note: 'Account is active']");
+      expect(dbml).toContain("  inactive [note: 'It\\'s disabled']");
+      expect(dbml).toContain("  pending\n");
+      expect(dbml).not.toContain("Note: 'Account status'");
+    });
+
+    it("should quote enum values that are not plain identifiers", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [],
+        relations: [],
+        enums: [
+          {
+            name: "bike_body_type",
+            values: ["naked", "on-off", "in progress", 'say "hi"', "日本語", "1st"],
+            valueComments: { "on-off": "Dual purpose" },
+          },
+        ],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain("  naked\n");
+      expect(dbml).toContain("  \"on-off\" [note: 'Dual purpose']");
+      expect(dbml).toContain('  "in progress"\n');
+      expect(dbml).toContain('  "say \\"hi\\""\n');
+      expect(dbml).toContain("  日本語\n");
+      expect(dbml).toContain("  1st\n");
+    });
+
+    it("should omit enum comments when includeComments is false", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [],
+        relations: [],
+        enums: [
+          {
+            name: "user_status",
+            values: ["active", "inactive"],
+            comment: "Account status",
+            valueComments: { active: "Account is active" },
+          },
+        ],
+      };
+
+      const formatter = new DbmlFormatter({ includeComments: false });
+      const dbml = formatter.format(schema);
+
+      expect(dbml).not.toContain("// Account status");
+      expect(dbml).not.toContain("note:");
+      expect(dbml).toContain('Enum "user_status" {\n  active\n  inactive\n}');
+    });
+
     it("should include table comments as Note", () => {
       const schema: IntermediateSchema = {
         databaseType: "postgresql",

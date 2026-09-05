@@ -53,6 +53,9 @@ program.name("drizzle-docs").description(packageJson.description).version(packag
 type Dialect = "postgresql" | "mysql" | "sqlite";
 type OutputFormat = "dbml" | "markdown";
 
+/** File name for enum documentation in multi-file Markdown output */
+const ENUMS_FILE_NAME = "enums.md";
+
 interface GenerateCommandOptions {
   output?: string;
   dialect: Dialect;
@@ -97,7 +100,11 @@ function getGeneratorClass(dialect: Dialect) {
 /**
  * Check if output directory has existing files
  */
-function hasExistingFiles(outputDir: string, tableNames: string[]): string[] {
+function hasExistingFiles(
+  outputDir: string,
+  tableNames: string[],
+  hasEnums: boolean = false,
+): string[] {
   const existingFiles: string[] = [];
 
   if (!existsSync(outputDir)) {
@@ -107,6 +114,13 @@ function hasExistingFiles(outputDir: string, tableNames: string[]): string[] {
   const readmePath = join(outputDir, "README.md");
   if (existsSync(readmePath)) {
     existingFiles.push(readmePath);
+  }
+
+  if (hasEnums) {
+    const enumsPath = join(outputDir, ENUMS_FILE_NAME);
+    if (existsSync(enumsPath)) {
+      existingFiles.push(enumsPath);
+    }
   }
 
   for (const tableName of tableNames) {
@@ -173,6 +187,11 @@ function findSchemaFiles(dirPath: string): string[] {
       const fullPath = join(dirPath, entry.name);
 
       if (entry.isDirectory()) {
+        // Skip dependencies and hidden directories (e.g. node_modules, .git):
+        // they never contain user schema files and importing them can fail
+        if (entry.name === "node_modules" || entry.name.startsWith(".")) {
+          continue;
+        }
         // Recursively search subdirectories
         files.push(...findSchemaFiles(fullPath));
       } else if (entry.isFile() && /\.(ts|js|mts|mjs|cts|cjs)$/.test(entry.name)) {
@@ -220,14 +239,14 @@ function resolveSchemaPath(schema: string): string[] {
  */
 function generateDbmlOutput(
   mergedSchema: Record<string, unknown>,
-  schemaPaths: string[],
+  sourcePath: string,
   options: GenerateCommandOptions,
 ): string {
   const generate = getGenerateFunction(options.dialect);
   return (
     generate({
       schema: mergedSchema,
-      source: schemaPaths[0],
+      source: sourcePath,
     }) || ""
   );
 }
@@ -272,6 +291,13 @@ function writeMarkdownMultipleFiles(
   const index = markdownFormatter.generateIndex(intermediateSchema);
   let readme = `${index}\n`;
 
+  // Add enums index to README and write enums.md (PostgreSQL enums)
+  const hasEnums = intermediateSchema.enums.length > 0;
+  if (hasEnums) {
+    const enumsIndex = markdownFormatter.generateEnumsIndex(intermediateSchema.enums);
+    readme += `\n---\n\n${enumsIndex}\n`;
+  }
+
   // Add ER diagram to README unless disabled
   if (options.erDiagram) {
     const mermaidFormatter = new MermaidErDiagramFormatter({
@@ -282,6 +308,12 @@ function writeMarkdownMultipleFiles(
   }
 
   writeFileSync(join(outputDir, "README.md"), readme, "utf-8");
+
+  // Write enums.md with all enum definitions
+  if (hasEnums) {
+    const enumsDoc = markdownFormatter.generateEnumsSection(intermediateSchema.enums);
+    writeFileSync(join(outputDir, ENUMS_FILE_NAME), `${enumsDoc}\n`, "utf-8");
+  }
 
   // Write individual table files
   for (const table of intermediateSchema.tables) {
@@ -329,15 +361,16 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
       }
     }
 
+    // For multiple files, pass the directory path to extract comments from all files
+    const firstFilePath = schemaPaths[0];
+    if (!firstFilePath) {
+      throw new Error("No schema files found");
+    }
+    const sourcePath = schemaPaths.length === 1 ? firstFilePath : dirname(firstFilePath);
+
     if (options.format === "markdown") {
       // Generate Markdown format
       const GeneratorClass = getGeneratorClass(options.dialect);
-      // For multiple files, pass the directory path to extract comments from all files
-      const firstFilePath = schemaPaths[0];
-      if (!firstFilePath) {
-        throw new Error("No schema files found");
-      }
-      const sourcePath = schemaPaths.length === 1 ? firstFilePath : dirname(firstFilePath);
       const generator = new GeneratorClass({
         schema: mergedSchema,
         source: sourcePath,
@@ -371,7 +404,11 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
           // Check for existing files if --force is not specified
           if (!options.force) {
             const tableNames = intermediateSchema.tables.map((t) => t.name);
-            const existingFiles = hasExistingFiles(options.output, tableNames);
+            const existingFiles = hasExistingFiles(
+              options.output,
+              tableNames,
+              intermediateSchema.enums.length > 0,
+            );
             if (existingFiles.length > 0) {
               console.error(
                 `Error: The following files already exist:\n${existingFiles.map((f) => `  - ${f}`).join("\n")}\nUse --force to overwrite existing files.`,
@@ -385,7 +422,7 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
       }
     } else {
       // Generate DBML format
-      const dbml = generateDbmlOutput(mergedSchema, schemaPaths, options);
+      const dbml = generateDbmlOutput(mergedSchema, sourcePath, options);
 
       if (options.output) {
         // Check for existing file if --force is not specified

@@ -166,6 +166,10 @@ export interface EnumDefinition {
   schema?: string;
   /** Enum values */
   values: string[];
+  /** JSDoc comment or description for this enum */
+  comment?: string;
+  /** JSDoc comments for individual enum values, keyed by value */
+  valueComments?: Record<string, string>;
 }
 
 /**

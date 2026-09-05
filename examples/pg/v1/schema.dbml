@@ -1,3 +1,11 @@
+// Lifecycle status of an order
+Enum "order_status" {
+  pending [note: 'Order has been placed but not yet paid']
+  paid [note: 'Payment confirmed']
+  shipped [note: 'Order has been handed to the carrier']
+  cancelled [note: 'Order was cancelled by the user or the shop']
+}
+
 Table "comments" {
   "id" serial [primary key, not null, increment, note: 'Auto-generated unique identifier']
   "body" text [not null, note: 'Comment text']
@@ -20,6 +28,7 @@ Table "orders" {
   "id" uuid [primary key, not null, default: `gen_random_uuid()`, note: 'Auto-generated unique identifier']
   "user_id" integer [not null, note: 'ID of the user who placed the order']
   "coupon_id" uuid [note: 'Optional coupon applied to this order (nullable foreign key)']
+  "status" order_status [not null, default: 'pending', note: 'Current status of the order']
   "total_cents" integer [not null, note: 'Total order amount in cents']
   "created_at" timestamp [default: `now()`, note: 'Timestamp when the order was created']
 

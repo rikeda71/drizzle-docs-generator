@@ -1,7 +1,15 @@
-import { type AnyColumn, getTableColumns } from "drizzle-orm";
-import { PgEnumColumn } from "drizzle-orm/pg-core";
+import { type AnyColumn, getTableColumns, is } from "drizzle-orm";
+import { PgEnumColumn, PgEnumObjectColumn } from "drizzle-orm/pg-core";
 import { BaseGenerator, writeDbmlFile, type DialectConfig } from "./common";
 import type { GenerateOptions, EnumDefinition } from "../types";
+
+/**
+ * Runtime shape of a pgEnum instance attached to an enum column
+ */
+interface PgEnumLike {
+  enumName: string;
+  enumValues: string[];
+}
 
 /**
  * PostgreSQL-specific DBML generator
@@ -30,12 +38,13 @@ export class PgGenerator<
       const columns = getTableColumns(table);
 
       for (const column of Object.values(columns)) {
-        if (column instanceof PgEnumColumn) {
-          const enumObj = (
-            column as unknown as { enum: { enumName: string; enumValues: string[] } }
-          ).enum;
+        // Use drizzle's is() (entityKind brand check) instead of instanceof.
+        // The schema may be loaded from a different drizzle-orm module instance
+        // than the one this generator imports, in which case instanceof is always false.
+        if (is(column, PgEnumColumn) || is(column, PgEnumObjectColumn)) {
+          const enumObj = (column as unknown as { enum: PgEnumLike | undefined }).enum;
           if (enumObj && !enums.has(enumObj.enumName)) {
-            enums.set(enumObj.enumName, enumObj.enumValues);
+            enums.set(enumObj.enumName, [...enumObj.enumValues]);
           }
         }
       }
@@ -48,7 +57,8 @@ export class PgGenerator<
    * Collect enum definitions for intermediate schema
    *
    * Overrides the base implementation to extract PostgreSQL enum types
-   * from enum columns in the schema.
+   * from enum columns in the schema, merging JSDoc comments extracted
+   * from the source (enum-level and per-value) when available.
    *
    * @returns Array of enum definitions
    */
@@ -57,9 +67,20 @@ export class PgGenerator<
     const enumDefinitions: EnumDefinition[] = [];
 
     for (const [name, values] of enums) {
+      const enumComment = this.comments?.enums?.[name];
+      const valueComments: Record<string, string> = {};
+      for (const value of values) {
+        const valueComment = enumComment?.values[value]?.comment;
+        if (valueComment) {
+          valueComments[value] = valueComment;
+        }
+      }
+
       enumDefinitions.push({
         name,
         values,
+        comment: enumComment?.comment,
+        valueComments: Object.keys(valueComments).length > 0 ? valueComments : undefined,
       });
     }
 

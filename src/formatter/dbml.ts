@@ -68,13 +68,28 @@ export class DbmlFormatter implements OutputFormatter {
 
   /**
    * Format an enum definition to DBML
+   *
+   * Value comments are emitted as `[note: '...']` attributes.
+   * DBML does not allow a `Note:` element inside an Enum block, so the
+   * enum-level comment is emitted as a `//` line comment above the block.
    */
   private formatEnum(dbml: DbmlBuilder, enumDef: EnumDefinition): void {
     const name = this.escapeName(enumDef.name);
+    if (this.options.includeComments && enumDef.comment) {
+      for (const commentLine of enumDef.comment.split("\n")) {
+        dbml.line(`// ${commentLine}`);
+      }
+    }
     dbml.line(`Enum ${name} {`);
     dbml.indent();
     for (const value of enumDef.values) {
-      dbml.line(value);
+      const valueComment = enumDef.valueComments?.[value];
+      const escapedValue = this.escapeEnumValue(value);
+      if (this.options.includeComments && valueComment) {
+        dbml.line(`${escapedValue} [note: '${this.escapeString(valueComment)}']`);
+      } else {
+        dbml.line(escapedValue);
+      }
     }
     dbml.dedent();
     dbml.line("}");
@@ -331,6 +346,20 @@ export class DbmlFormatter implements OutputFormatter {
    */
   private escapeName(name: string): string {
     return `"${name}"`;
+  }
+
+  /**
+   * Escape an enum value for DBML
+   *
+   * DBML enum values must be identifiers (letters, digits, underscore) or
+   * quoted identifiers. Values containing other characters (e.g. "on-off",
+   * "in progress") are wrapped in double quotes.
+   */
+  private escapeEnumValue(value: string): string {
+    if (/^[\p{L}\p{N}_]+$/u.test(value)) {
+      return value;
+    }
+    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
   }
 
   /**

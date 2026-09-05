@@ -11,6 +11,7 @@ Orders with optional coupon reference
 | **id** | uuid | `gen_random_uuid()` | NO | - | - | Auto-generated unique identifier |
 | user_id | integer | - | NO | - | [users.id](./users.md) | ID of the user who placed the order |
 | coupon_id | uuid | - | YES | - | [coupons.id](./coupons.md) | Optional coupon applied to this order (nullable foreign key) |
+| status | order_status | `'pending'` | NO | - | - | Current status of the order |
 | total_cents | integer | - | NO | - | - | Total order amount in cents |
 | created_at | timestamp | `now()` | YES | - | - | Timestamp when the order was created |
 

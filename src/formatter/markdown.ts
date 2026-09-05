@@ -131,6 +131,40 @@ export class MarkdownFormatter implements OutputFormatter {
   }
 
   /**
+   * Generate the enums index section (README.md style)
+   *
+   * Used by multi-file output to link enums from README.md to enums.md.
+   *
+   * @param enums - The enum definitions
+   * @returns Markdown string for the enums index
+   */
+  generateEnumsIndex(enums: EnumDefinition[]): string {
+    const lines: string[] = [];
+
+    lines.push("# Enums");
+    lines.push("");
+
+    if (enums.length === 0) {
+      lines.push("No enums defined.");
+      return lines.join("\n");
+    }
+
+    lines.push("| Name | Values | Comment |");
+    lines.push("|------|--------|---------|");
+
+    for (const enumDef of enums) {
+      const name = this.options.useRelativeLinks ? this.createEnumLink(enumDef.name) : enumDef.name;
+      const values = enumDef.values.map((value) => this.escapeMarkdown(value)).join(", ");
+      const comment =
+        this.options.includeComments && enumDef.comment ? this.escapeMarkdown(enumDef.comment) : "";
+
+      lines.push(`| ${name} | ${values} | ${comment} |`);
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
    * Generate documentation for a single table
    *
    * @param table - The table definition
@@ -308,8 +342,15 @@ export class MarkdownFormatter implements OutputFormatter {
 
   /**
    * Generate documentation for enums
+   *
+   * Each enum gets its own heading, an optional description (from JSDoc),
+   * and a values table. A Comment column is added only when at least one
+   * value has a comment.
+   *
+   * @param enums - The enum definitions
+   * @returns Markdown string for the enums section
    */
-  private generateEnumsSection(enums: EnumDefinition[]): string {
+  generateEnumsSection(enums: EnumDefinition[]): string {
     const lines: string[] = [];
 
     lines.push("# Enums");
@@ -318,10 +359,30 @@ export class MarkdownFormatter implements OutputFormatter {
     for (const enumDef of enums) {
       lines.push(`## ${enumDef.name}`);
       lines.push("");
-      lines.push("| Value |");
-      lines.push("|-------|");
-      for (const value of enumDef.values) {
-        lines.push(`| ${value} |`);
+
+      if (this.options.includeComments && enumDef.comment) {
+        lines.push(this.escapeMarkdownWithBreaks(enumDef.comment));
+        lines.push("");
+      }
+
+      const hasValueComments =
+        this.options.includeComments &&
+        enumDef.values.some((value) => Boolean(enumDef.valueComments?.[value]));
+
+      if (hasValueComments) {
+        lines.push("| Value | Comment |");
+        lines.push("|-------|---------|");
+        for (const value of enumDef.values) {
+          const comment = enumDef.valueComments?.[value];
+          const commentStr = comment ? this.escapeMarkdown(comment) : "-";
+          lines.push(`| ${this.escapeMarkdown(value)} | ${commentStr} |`);
+        }
+      } else {
+        lines.push("| Value |");
+        lines.push("|-------|");
+        for (const value of enumDef.values) {
+          lines.push(`| ${this.escapeMarkdown(value)} |`);
+        }
       }
       lines.push("");
     }
@@ -436,6 +497,19 @@ export class MarkdownFormatter implements OutputFormatter {
       return `[${text}](./${tableName}.md)`;
     }
     return `[${text}](#${tableName})`;
+  }
+
+  /**
+   * Create an enum link based on the configured link format
+   *
+   * In "file" mode, enums are documented together in enums.md
+   */
+  private createEnumLink(enumName: string, displayText?: string): string {
+    const text = displayText || enumName;
+    if (this.options.linkFormat === "file") {
+      return `[${text}](./enums.md#${enumName})`;
+    }
+    return `[${text}](#${enumName})`;
   }
 
   /**
