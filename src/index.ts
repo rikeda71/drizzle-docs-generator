@@ -9,7 +9,13 @@
 
 // Comment extraction from source files
 export { extractComments } from "./parser/comments";
-export type { SchemaComments, TableComment, ColumnComment } from "./parser/comments";
+export type {
+  SchemaComments,
+  TableComment,
+  ColumnComment,
+  EnumComment,
+  EnumValueComment,
+} from "./parser/comments";
 
 // DBML generators
 export { pgGenerate, PgGenerator } from "./generator/pg";

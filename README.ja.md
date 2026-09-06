@@ -10,6 +10,7 @@ Drizzle ORM スキーマから DBML と Markdown ドキュメントを生成す�
 - **ディレクトリインポート対応**: ディレクトリ内のすべてのスキーマファイルを自動インポート
 - **拡張子不要**: 拡張子なしのインポートに対応 (例: `import { users } from './users'`)
 - **JSDoc コメント**: 自動的に DBML の Note 句に変換
+- **PostgreSQL Enum**: `pgEnum` 定義をドキュメント化 (enum 本体と各値の JSDoc コメントも抽出)
 - **リレーション対応**: `relations()` または `defineRelations()` から参照を生成
 - **Watch モード**: ファイル変更時に自動再生成
 - **複数の出力形式**: Markdown (デフォルト) および ER 図付き DBML
@@ -57,6 +58,7 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -o schema.dbml
 #### Markdown 形式 (デフォルト)
 
 デフォルトの出力形式は **Markdown** で、ER 図付きの複数ファイルを生成します。
+PostgreSQL スキーマに `pgEnum` 定義がある場合は `enums.md` も生成され、`README.md` からリンクされます。
 
 **Markdown 形式固有のオプション:**
 
@@ -150,6 +152,40 @@ Table users {
 | ---- | ------ | -------- | ------- | ---------- |
 | id   | serial | No       |         | ユーザーID |
 | name | text   | No       |         | ユーザー名 |
+```
+
+### Enum コメント (PostgreSQL)
+
+`pgEnum` 定義と各値に付けた JSDoc コメントも抽出されます。
+enum 定義が解析されるように、スキーマの**ディレクトリ** (または enum を定義しているファイル) をソースに指定してください。
+
+```typescript
+/** 注文のライフサイクル状態 */
+export const orderStatusEnum = pgEnum("order_status", [
+  /** 注文済み・未決済 */
+  "pending",
+  /** 決済確認済み */
+  "paid",
+]);
+```
+
+```dbml
+// 注文のライフサイクル状態
+Enum "order_status" {
+  pending [note: '注文済み・未決済']
+  paid [note: '決済確認済み']
+}
+```
+
+```markdown
+## order_status
+
+注文のライフサイクル状態
+
+| Value   | Comment          |
+| ------- | ---------------- |
+| pending | 注文済み・未決済 |
+| paid    | 決済確認済み     |
 ```
 
 詳細なサンプル出力は [examples/](./examples/) を参照してください。

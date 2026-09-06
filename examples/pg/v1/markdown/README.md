@@ -4,11 +4,19 @@
 |------|---------|---------|
 | [comments](./comments.md) | 5 | Comments on posts |
 | [coupons](./coupons.md) | 3 | Discount coupons |
-| [orders](./orders.md) | 5 | Orders with optional coupon reference |
+| [orders](./orders.md) | 6 | Orders with optional coupon reference |
 | [post_tags](./post_tags.md) | 2 | Join table for many-to-many relationship between posts and tags |
 | [posts](./posts.md) | 6 | Blog posts created by users |
 | [tags](./tags.md) | 3 | Tags for categorizing posts |
 | [users](./users.md) | 5 | User accounts table storing basic user information |
+
+---
+
+# Enums
+
+| Name | Values | Comment |
+|------|--------|---------|
+| [order_status](./enums.md#order_status) | pending, paid, shipped, cancelled | Lifecycle status of an order |
 
 ---
 
@@ -40,6 +48,7 @@ erDiagram
         uuid id PK "Auto-generated unique identifier"
         int user_id FK "ID of the user who placed the order"
         uuid coupon_id FK "Optional coupon applied to this order (nullable foreign key)"
+        order_status status "Current status of the order"
         int total_cents "Total order amount in cents"
         timestamp created_at "Timestamp when the order was created"
     }

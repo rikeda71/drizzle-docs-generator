@@ -10,6 +10,7 @@ CLI tool to generate DBML and Markdown documentation from Drizzle ORM schemas. E
 - **Directory Import Support**: Import all schema files from a directory
 - **No File Extension Required**: Works with extensionless imports (e.g., `import { users } from './users'`)
 - **JSDoc Comments**: Automatically extracts and converts to DBML Notes
+- **PostgreSQL Enums**: Documents `pgEnum` definitions, including JSDoc comments on the enum and each value
 - **Relations Support**: Generate refs from `relations()` or `defineRelations()`
 - **Watch Mode**: Auto-regenerate on file changes
 - **Multiple Output Formats**: Markdown (default) and DBML with ER diagrams
@@ -57,6 +58,7 @@ drizzle-docs generate ./src/db/schema.ts -d postgresql -f dbml -o schema.dbml
 #### Markdown Format (Default)
 
 The default output format is **Markdown**, which generates multiple files with an ER diagram.
+For PostgreSQL schemas with `pgEnum` definitions, an `enums.md` file is generated and linked from `README.md`.
 
 **Options specific to Markdown format:**
 
@@ -150,6 +152,40 @@ Users table
 | ---- | ------ | -------- | ------- | --------- |
 | id   | serial | No       |         | User ID   |
 | name | text   | No       |         | User name |
+```
+
+### Enum Comments (PostgreSQL)
+
+JSDoc comments on `pgEnum` definitions and on each value are extracted as well.
+Pass the schema **directory** (or the file that defines the enum) as the source so the enum definition is parsed.
+
+```typescript
+/** Lifecycle status of an order */
+export const orderStatusEnum = pgEnum("order_status", [
+  /** Order has been placed but not yet paid */
+  "pending",
+  /** Payment confirmed */
+  "paid",
+]);
+```
+
+```dbml
+// Lifecycle status of an order
+Enum "order_status" {
+  pending [note: 'Order has been placed but not yet paid']
+  paid [note: 'Payment confirmed']
+}
+```
+
+```markdown
+## order_status
+
+Lifecycle status of an order
+
+| Value   | Comment                                |
+| ------- | -------------------------------------- |
+| pending | Order has been placed but not yet paid |
+| paid    | Payment confirmed                      |
 ```
 
 See [examples/](./examples/) for more detailed output samples.

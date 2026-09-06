@@ -9,10 +9,12 @@
  * - Cleaner, more modern relation definitions
  * - Supports bidirectional relation queries
  * - Includes nullable foreign key examples
+ * - Includes a PostgreSQL enum with JSDoc comments on the enum and its values
  */
 
 import {
   pgTable,
+  pgEnum,
   serial,
   text,
   varchar,
@@ -144,6 +146,18 @@ export const coupons = pgTable("coupons", {
   discountPercent: integer("discount_percent").notNull(),
 });
 
+/** Lifecycle status of an order */
+export const orderStatusEnum = pgEnum("order_status", [
+  /** Order has been placed but not yet paid */
+  "pending",
+  /** Payment confirmed */
+  "paid",
+  /** Order has been handed to the carrier */
+  "shipped",
+  /** Order was cancelled by the user or the shop */
+  "cancelled",
+]);
+
 /** Orders with optional coupon reference */
 export const orders = pgTable(
   "orders",
@@ -154,6 +168,8 @@ export const orders = pgTable(
     userId: integer("user_id").notNull(),
     /** Optional coupon applied to this order (nullable foreign key) */
     couponId: uuid("coupon_id"),
+    /** Current status of the order */
+    status: orderStatusEnum("status").default("pending").notNull(),
     /** Total order amount in cents */
     totalCents: integer("total_cents").notNull(),
     /** Timestamp when the order was created */

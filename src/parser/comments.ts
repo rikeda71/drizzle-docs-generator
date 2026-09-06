@@ -2,6 +2,7 @@ import * as ts from "typescript";
 import { getCasingFn, type Casing } from "drizzle-orm/casing";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { isIgnoredDirectory } from "./files";
 
 /**
  * Comments for a single column
@@ -19,10 +20,30 @@ export interface TableComment {
 }
 
 /**
+ * Comment for a single enum value
+ */
+export interface EnumValueComment {
+  comment: string;
+}
+
+/**
+ * Comments for a single enum (PostgreSQL pgEnum)
+ */
+export interface EnumComment {
+  comment?: string;
+  values: Record<string, EnumValueComment>;
+}
+
+/**
  * All extracted comments from a schema file
  */
 export interface SchemaComments {
   tables: Record<string, TableComment>;
+  /**
+   * Comments for PostgreSQL enums, keyed by enum name.
+   * Optional for backward compatibility with pre-extracted comments.
+   */
+  enums?: Record<string, EnumComment>;
 }
 
 /**
@@ -104,6 +125,9 @@ function getTypeScriptFiles(sourcePath: string): string[] {
     for (const entry of entries) {
       const fullPath = join(sourcePath, entry.name);
       if (entry.isDirectory()) {
+        if (isIgnoredDirectory(entry.name)) {
+          continue;
+        }
         files.push(...getTypeScriptFiles(fullPath));
       } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
         files.push(fullPath);
@@ -123,6 +147,7 @@ function getTypeScriptFiles(sourcePath: string): string[] {
  * - JSDoc comments on table definitions
  *   (e.g., pgTable, mysqlTable, sqliteTable, snakeCase.table, mySchema.table)
  * - JSDoc comments on column definitions within tables
+ * - JSDoc comments on enum definitions (pgEnum) and their values
  *
  * Column comments are keyed by the database column name. When a column has no
  * explicit name (Drizzle v1 style, e.g., `authorId: integer()`), the property key is
@@ -130,10 +155,10 @@ function getTypeScriptFiles(sourcePath: string): string[] {
  * matching what Drizzle does at runtime.
  *
  * @param sourcePath - Path to the TypeScript schema file or directory
- * @returns Extracted comments organized by table and column
+ * @returns Extracted comments organized by table, column, and enum
  */
 export function extractComments(sourcePath: string): SchemaComments {
-  const comments: SchemaComments = { tables: {} };
+  const comments: Required<SchemaComments> = { tables: {}, enums: {} };
   const files = getTypeScriptFiles(sourcePath);
   const schemaVariables = new Map<string, BindingCasing>();
 
@@ -234,7 +259,7 @@ function collectSchemaVariables(sourceFile: ts.SourceFile, scope: CasingScope): 
 function visitNode(
   node: ts.Node,
   sourceFile: ts.SourceFile,
-  comments: SchemaComments,
+  comments: Required<SchemaComments>,
   scope: CasingScope,
 ): void {
   // Look for variable declarations that define tables
@@ -255,6 +280,12 @@ function visitNode(
         );
         if (tableInfo) {
           comments.tables[tableInfo.tableName] = tableInfo.tableComment;
+          continue;
+        }
+
+        const enumInfo = parseEnumDefinition(declaration.initializer, sourceFile, jsDocComment);
+        if (enumInfo) {
+          comments.enums[enumInfo.enumName] = enumInfo.enumComment;
         }
       }
     }
@@ -311,6 +342,70 @@ function parseTableDefinition(
     tableComment: {
       comment: tableJsDoc,
       columns: columnComments,
+    },
+  };
+}
+
+/**
+ * Parse an enum definition call expression
+ *
+ * Supports both the array form and the object form of pgEnum:
+ * - pgEnum("status", ["active", "inactive"])
+ * - pgEnum("status", { Active: "active", Inactive: "inactive" })
+ * - mySchema.enum("status", [...]) (pgSchema().enum())
+ *
+ * Value comments are keyed by the database value (string literal), not the
+ * TypeScript object key.
+ */
+function parseEnumDefinition(
+  callExpr: ts.CallExpression,
+  sourceFile: ts.SourceFile,
+  enumJsDoc: string | undefined,
+): { enumName: string; enumComment: EnumComment } | undefined {
+  const funcName = getCallExpressionName(callExpr);
+
+  if (!isEnumDefinitionFunction(funcName)) {
+    return undefined;
+  }
+
+  // Get enum name from first argument
+  const enumNameArg = callExpr.arguments[0];
+  if (!enumNameArg || !ts.isStringLiteral(enumNameArg)) {
+    return undefined;
+  }
+  const enumName = enumNameArg.text;
+
+  // Get enum values from second argument
+  const valuesArg = callExpr.arguments[1];
+  const valueComments: Record<string, EnumValueComment> = {};
+
+  if (valuesArg && ts.isArrayLiteralExpression(valuesArg)) {
+    for (const element of valuesArg.elements) {
+      if (ts.isStringLiteralLike(element)) {
+        const valueJsDoc = getJsDocComment(element, sourceFile);
+        if (valueJsDoc) {
+          valueComments[element.text] = { comment: valueJsDoc };
+        }
+      }
+    }
+  } else if (valuesArg && ts.isObjectLiteralExpression(valuesArg)) {
+    for (const property of valuesArg.properties) {
+      if (ts.isPropertyAssignment(property) && ts.isStringLiteralLike(property.initializer)) {
+        const valueJsDoc = getJsDocComment(property, sourceFile);
+        if (valueJsDoc) {
+          valueComments[property.initializer.text] = { comment: valueJsDoc };
+        }
+      }
+    }
+  } else {
+    return undefined;
+  }
+
+  return {
+    enumName,
+    enumComment: {
+      comment: enumJsDoc,
+      values: valueComments,
     },
   };
 }
@@ -377,6 +472,16 @@ function resolveCasing(expr: ts.Expression, scope: CasingScope): BindingCasing |
     return resolveCasing(expr.expression, scope);
   }
   return undefined;
+}
+
+/**
+ * Check if a function name is an enum definition function
+ *
+ * `enum` covers the schema-scoped form: pgSchema("name").enum(...)
+ */
+function isEnumDefinitionFunction(funcName: string | undefined): boolean {
+  if (!funcName) return false;
+  return ["pgEnum", "enum"].includes(funcName);
 }
 
 /**

@@ -1,6 +1,7 @@
 import * as ts from "typescript";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { isIgnoredDirectory } from "./files";
 
 /**
  * Parsed relation from relations() definition
@@ -42,6 +43,9 @@ function getTypeScriptFiles(sourcePath: string): string[] {
     for (const entry of entries) {
       const fullPath = join(sourcePath, entry.name);
       if (entry.isDirectory()) {
+        if (isIgnoredDirectory(entry.name)) {
+          continue;
+        }
         files.push(...getTypeScriptFiles(fullPath));
       } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
         files.push(fullPath);

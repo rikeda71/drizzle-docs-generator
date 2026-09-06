@@ -446,6 +446,59 @@ describe("MarkdownFormatter", () => {
       expect(markdown).toContain("| active |");
       expect(markdown).toContain("| inactive |");
       expect(markdown).toContain("| pending |");
+      // No Comment column when no value has a comment
+      expect(markdown).not.toContain("| Value | Comment |");
+    });
+
+    it("should include enum comments and a Comment column for values", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [],
+        relations: [],
+        enums: [
+          {
+            name: "user_status",
+            values: ["active", "inactive", "pending"],
+            comment: "Account status",
+            valueComments: {
+              active: "Account is active",
+              inactive: "Account is disabled",
+            },
+          },
+        ],
+      };
+
+      const formatter = new MarkdownFormatter();
+      const markdown = formatter.format(schema);
+
+      expect(markdown).toContain("## user_status\n\nAccount status\n\n| Value | Comment |");
+      expect(markdown).toContain("|-------|---------|");
+      expect(markdown).toContain("| active | Account is active |");
+      expect(markdown).toContain("| inactive | Account is disabled |");
+      expect(markdown).toContain("| pending | - |");
+    });
+
+    it("should omit enum comments when includeComments is false", () => {
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [],
+        relations: [],
+        enums: [
+          {
+            name: "user_status",
+            values: ["active", "inactive"],
+            comment: "Account status",
+            valueComments: { active: "Account is active" },
+          },
+        ],
+      };
+
+      const formatter = new MarkdownFormatter({ includeComments: false });
+      const markdown = formatter.format(schema);
+
+      expect(markdown).not.toContain("Account status");
+      expect(markdown).not.toContain("Account is active");
+      expect(markdown).toContain("| Value |\n|-------|\n| active |\n| inactive |");
     });
 
     it("should include table comments", () => {
@@ -798,6 +851,73 @@ describe("MarkdownFormatter", () => {
 
       expect(index).toContain("# Tables");
       expect(index).toContain("No tables defined.");
+    });
+  });
+
+  describe("generateEnumsIndex", () => {
+    const enums = [
+      {
+        name: "user_status",
+        values: ["active", "inactive"],
+        comment: "Account status",
+      },
+      {
+        name: "user_role",
+        values: ["admin", "member"],
+      },
+    ];
+
+    it("should generate an enums index with file links", () => {
+      const formatter = new MarkdownFormatter({ linkFormat: "file" });
+      const index = formatter.generateEnumsIndex(enums);
+
+      expect(index).toContain("# Enums");
+      expect(index).toContain("| Name | Values | Comment |");
+      expect(index).toContain(
+        "| [user_status](./enums.md#user_status) | active, inactive | Account status |",
+      );
+      expect(index).toContain("| [user_role](./enums.md#user_role) | admin, member |  |");
+    });
+
+    it("should generate an enums index with anchor links by default", () => {
+      const formatter = new MarkdownFormatter();
+      const index = formatter.generateEnumsIndex(enums);
+
+      expect(index).toContain(
+        "| [user_status](#user_status) | active, inactive | Account status |",
+      );
+    });
+
+    it("should not link names when useRelativeLinks is false", () => {
+      const formatter = new MarkdownFormatter({ useRelativeLinks: false });
+      const index = formatter.generateEnumsIndex(enums);
+
+      expect(index).toContain("| user_status | active, inactive | Account status |");
+      expect(index).not.toContain("](");
+    });
+
+    it("should handle empty enums", () => {
+      const formatter = new MarkdownFormatter();
+      const index = formatter.generateEnumsIndex([]);
+
+      expect(index).toBe("# Enums\n\nNo enums defined.");
+    });
+  });
+
+  describe("generateEnumsSection", () => {
+    it("should be usable standalone for enums.md output", () => {
+      const formatter = new MarkdownFormatter({ linkFormat: "file" });
+      const section = formatter.generateEnumsSection([
+        {
+          name: "user_status",
+          values: ["active"],
+          comment: "Account status",
+          valueComments: { active: "Account is active" },
+        },
+      ]);
+
+      expect(section.startsWith("# Enums\n\n## user_status\n\nAccount status\n\n")).toBe(true);
+      expect(section).toContain("| active | Account is active |");
     });
   });
 

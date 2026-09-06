@@ -15,6 +15,7 @@ import {
   snakeCase,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm/_relations";
+import { entityKind } from "drizzle-orm";
 import type { SchemaComments } from "../parser/comments";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -1124,6 +1125,177 @@ describe("PgGenerator.toIntermediateSchema with enums", () => {
     const roleEnumDef = schema.enums.find((e: { name: string }) => e.name === "role");
     expect(roleEnumDef).toBeDefined();
     expect(roleEnumDef.values).toEqual(["admin", "user", "guest"]);
+  });
+
+  it("should extract object-form enums (PgEnumObjectColumn)", async () => {
+    const { pgEnum } = await import("drizzle-orm/pg-core");
+
+    const statusEnum = pgEnum("status", { Active: "active", Inactive: "inactive" });
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      status: statusEnum("status").notNull(),
+    });
+
+    const generator = new PgGenerator({ schema: { users, statusEnum } });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.enums).toHaveLength(1);
+    expect(schema.enums[0].name).toBe("status");
+    expect(schema.enums[0].values).toEqual(["active", "inactive"]);
+  });
+
+  it("should detect enum columns from a different drizzle-orm module instance (#158)", async () => {
+    const { PgColumn, PgEnumColumn } = await import("drizzle-orm/pg-core");
+
+    // Simulate a PgEnumColumn class coming from another copy of drizzle-orm:
+    // it carries the same entityKind brand but is not the same class object,
+    // so `instanceof PgEnumColumn` is false while drizzle's `is()` is true.
+    class ForeignPgEnumColumn extends PgColumn {
+      static override readonly [entityKind]: string = "PgEnumColumn";
+      readonly enum = { enumName: "status", enumValues: ["active", "inactive"] };
+      getSQLType(): string {
+        return this.enum.enumName;
+      }
+    }
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      status: text("status").notNull(),
+    });
+
+    // Replace the column with the foreign enum column instance
+    const originalStatus = users.status as unknown as {
+      table: unknown;
+      config: Record<string, unknown>;
+    };
+    const foreignColumn = new ForeignPgEnumColumn(
+      originalStatus.table as never,
+      originalStatus.config as never,
+    );
+    const symbolColumns = Object.getOwnPropertySymbols(users).find(
+      (sym) => sym.description === "drizzle:Columns",
+    );
+    expect(symbolColumns).toBeDefined();
+    (users as unknown as Record<symbol, Record<string, unknown>>)[symbolColumns!].status =
+      foreignColumn;
+
+    expect(foreignColumn instanceof PgEnumColumn).toBe(false);
+
+    const generator = new PgGenerator({ schema: { users } });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.enums).toHaveLength(1);
+    expect(schema.enums[0].name).toBe("status");
+    expect(schema.enums[0].values).toEqual(["active", "inactive"]);
+  });
+
+  it("should merge enum comments from pre-extracted comments", async () => {
+    const { pgEnum } = await import("drizzle-orm/pg-core");
+
+    const statusEnum = pgEnum("status", ["active", "inactive", "pending"]);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      status: statusEnum("status").notNull(),
+    });
+
+    const comments: SchemaComments = {
+      tables: {},
+      enums: {
+        status: {
+          comment: "Account status",
+          values: {
+            active: { comment: "Account is active" },
+            inactive: { comment: "Account is disabled" },
+          },
+        },
+      },
+    };
+
+    const generator = new PgGenerator({ schema: { users, statusEnum }, comments });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.enums).toHaveLength(1);
+    expect(schema.enums[0].comment).toBe("Account status");
+    expect(schema.enums[0].valueComments).toEqual({
+      active: "Account is active",
+      inactive: "Account is disabled",
+    });
+  });
+
+  it("should leave enum comments undefined when no enum comments are provided", async () => {
+    const { pgEnum } = await import("drizzle-orm/pg-core");
+
+    const statusEnum = pgEnum("status", ["active", "inactive"]);
+
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      status: statusEnum("status").notNull(),
+    });
+
+    // Pre-extracted comments without the enums field (backward compatibility)
+    const comments: SchemaComments = { tables: {} };
+
+    const generator = new PgGenerator({ schema: { users, statusEnum }, comments });
+    const schema = generator.toIntermediateSchema();
+
+    expect(schema.enums[0].comment).toBeUndefined();
+    expect(schema.enums[0].valueComments).toBeUndefined();
+  });
+
+  it("should extract enum comments from source file", async () => {
+    const { pgEnum } = await import("drizzle-orm/pg-core");
+    const ENUM_TEST_DIR = join(import.meta.dirname, "__test_fixtures_enum__");
+    mkdirSync(ENUM_TEST_DIR, { recursive: true });
+
+    try {
+      const filePath = join(ENUM_TEST_DIR, "schema.ts");
+      writeFileSync(
+        filePath,
+        `
+import { pgTable, pgEnum, serial } from "drizzle-orm/pg-core";
+
+/** Bike body type */
+export const bikeBodyTypeEnum = pgEnum("bike_body_type", [
+  /** No fairing */
+  "naked",
+  "quadricycle",
+]);
+
+/** Bikes */
+export const bikes = pgTable("bikes", {
+  id: serial("id").primaryKey(),
+  /** Body type */
+  bodyType: bikeBodyTypeEnum("body_type").notNull(),
+});
+`,
+      );
+
+      const bikeBodyTypeEnum = pgEnum("bike_body_type", ["naked", "quadricycle"]);
+      const bikes = pgTable("bikes", {
+        id: serial("id").primaryKey(),
+        bodyType: bikeBodyTypeEnum("body_type").notNull(),
+      });
+
+      const generator = new PgGenerator({
+        schema: { bikes, bikeBodyTypeEnum },
+        source: filePath,
+      });
+      const schema = generator.toIntermediateSchema();
+
+      expect(schema.enums).toHaveLength(1);
+      expect(schema.enums[0].comment).toBe("Bike body type");
+      expect(schema.enums[0].valueComments).toEqual({ naked: "No fairing" });
+
+      const dbml = pgGenerate({ schema: { bikes, bikeBodyTypeEnum }, source: filePath });
+      expect(dbml).toContain("// Bike body type");
+      expect(dbml).toContain('Enum "bike_body_type" {');
+      expect(dbml).toContain("naked [note: 'No fairing']");
+      expect(dbml).toContain("quadricycle");
+    } finally {
+      rmSync(ENUM_TEST_DIR, { recursive: true, force: true });
+    }
   });
 });
 
