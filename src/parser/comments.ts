@@ -26,18 +26,13 @@ export interface SchemaComments {
 }
 
 /**
- * Context shared across all files while parsing
+ * Column casing associated with an identifier, shared across all parsed files.
+ *
+ * Holds import aliases of the Drizzle v1 casing helpers
+ * (e.g., `import { snakeCase as sc }`) and schema variables created from them
+ * (e.g., `const auth = snakeCase.schema("auth")`).
  */
-interface ParseContext {
-  /**
-   * Column casing associated with an identifier.
-   *
-   * Holds import aliases of the Drizzle v1 casing helpers
-   * (e.g., `import { snakeCase as sc }`) and schema variables created from them
-   * (e.g., `const auth = snakeCase.schema("auth")`).
-   */
-  casingByIdentifier: Map<string, Casing>;
-}
+type CasingByIdentifier = Map<string, Casing>;
 
 /**
  * Get all TypeScript files from a path (file or directory)
@@ -87,7 +82,7 @@ function getTypeScriptFiles(sourcePath: string): string[] {
 export function extractComments(sourcePath: string): SchemaComments {
   const comments: SchemaComments = { tables: {} };
   const files = getTypeScriptFiles(sourcePath);
-  const context: ParseContext = { casingByIdentifier: new Map() };
+  const casingByIdentifier: CasingByIdentifier = new Map();
 
   const sourceFiles = files.map((filePath) => {
     const sourceCode = readFileSync(filePath, "utf-8");
@@ -97,55 +92,61 @@ export function extractComments(sourcePath: string): SchemaComments {
   // First pass: collect casing helper aliases and schema variables across all files,
   // so that tables can resolve their casing regardless of file/declaration order
   for (const sourceFile of sourceFiles) {
-    collectCasingIdentifiers(sourceFile, context);
+    collectCasingIdentifiers(sourceFile, casingByIdentifier);
   }
 
   // Second pass: extract table and column comments
   for (const sourceFile of sourceFiles) {
-    visitNode(sourceFile, sourceFile, comments, context);
+    visitNode(sourceFile, sourceFile, comments, casingByIdentifier);
   }
 
   return comments;
 }
 
 /**
- * Recursively visit AST nodes to record identifiers that carry a column casing
+ * Record top-level identifiers that carry a column casing
  *
  * - `import { snakeCase as sc } from "drizzle-orm/pg-core"` -> sc: snake_case
  * - `const auth = snakeCase.schema("auth")` -> auth: snake_case
+ *
+ * Only module-level statements are inspected: imports are always top-level and
+ * schema variables are declared there in practice.
  */
-function collectCasingIdentifiers(node: ts.Node, context: ParseContext): void {
-  if (ts.isImportDeclaration(node)) {
-    const namedBindings = node.importClause?.namedBindings;
-    if (namedBindings && ts.isNamedImports(namedBindings)) {
-      for (const element of namedBindings.elements) {
-        const importedName = element.propertyName?.text ?? element.name.text;
-        const casing = getCasingFromHelperName(importedName);
-        if (casing) {
-          context.casingByIdentifier.set(element.name.text, casing);
+function collectCasingIdentifiers(
+  sourceFile: ts.SourceFile,
+  casingByIdentifier: CasingByIdentifier,
+): void {
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement)) {
+      const namedBindings = statement.importClause?.namedBindings;
+      if (namedBindings && ts.isNamedImports(namedBindings)) {
+        for (const element of namedBindings.elements) {
+          const importedName = element.propertyName?.text ?? element.name.text;
+          const casing = getCasingFromHelperName(importedName);
+          if (casing) {
+            casingByIdentifier.set(element.name.text, casing);
+          }
+        }
+      }
+    }
+
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        const initializer = declaration.initializer;
+        if (
+          ts.isIdentifier(declaration.name) &&
+          initializer &&
+          ts.isCallExpression(initializer) &&
+          getCallExpressionName(initializer) === "schema"
+        ) {
+          const casing = resolveCasing(initializer, casingByIdentifier);
+          if (casing) {
+            casingByIdentifier.set(declaration.name.text, casing);
+          }
         }
       }
     }
   }
-
-  if (ts.isVariableStatement(node)) {
-    for (const declaration of node.declarationList.declarations) {
-      const initializer = declaration.initializer;
-      if (
-        ts.isIdentifier(declaration.name) &&
-        initializer &&
-        ts.isCallExpression(initializer) &&
-        getCallExpressionName(initializer) === "schema"
-      ) {
-        const casing = resolveCasing(initializer, context);
-        if (casing) {
-          context.casingByIdentifier.set(declaration.name.text, casing);
-        }
-      }
-    }
-  }
-
-  ts.forEachChild(node, (child) => collectCasingIdentifiers(child, context));
 }
 
 /**
@@ -155,7 +156,7 @@ function visitNode(
   node: ts.Node,
   sourceFile: ts.SourceFile,
   comments: SchemaComments,
-  context: ParseContext,
+  casingByIdentifier: CasingByIdentifier,
 ): void {
   // Look for variable declarations that define tables
   if (ts.isVariableStatement(node)) {
@@ -171,7 +172,7 @@ function visitNode(
           declaration.initializer,
           sourceFile,
           jsDocComment,
-          context,
+          casingByIdentifier,
         );
         if (tableInfo) {
           comments.tables[tableInfo.tableName] = tableInfo.tableComment;
@@ -180,7 +181,7 @@ function visitNode(
     }
   }
 
-  ts.forEachChild(node, (child) => visitNode(child, sourceFile, comments, context));
+  ts.forEachChild(node, (child) => visitNode(child, sourceFile, comments, casingByIdentifier));
 }
 
 /**
@@ -191,7 +192,7 @@ function parseTableDefinition(
   callExpr: ts.CallExpression,
   sourceFile: ts.SourceFile,
   tableJsDoc: string | undefined,
-  context: ParseContext,
+  casingByIdentifier: CasingByIdentifier,
 ): { tableName: string; tableComment: TableComment } | undefined {
   const funcName = getCallExpressionName(callExpr);
 
@@ -208,7 +209,7 @@ function parseTableDefinition(
   const tableName = tableNameArg.text;
 
   // Casing applied to property keys of columns without an explicit name
-  const casingFn = getCasingFn(resolveCasing(callExpr.expression, context));
+  const casingFn = getCasingFn(resolveCasing(callExpr.expression, casingByIdentifier));
 
   // Get column definitions from second argument
   const columnsArg = callExpr.arguments[1];
@@ -281,15 +282,20 @@ function getCasingFromHelperName(name: string): Casing | undefined {
  * - `authSchema.table` (where `authSchema = snakeCase.schema("auth")`) -> snake_case
  * - `pgTable`, `pgSchema("auth").table` -> undefined (no casing conversion)
  */
-function resolveCasing(expr: ts.Expression, context: ParseContext): Casing | undefined {
+function resolveCasing(
+  expr: ts.Expression,
+  casingByIdentifier: CasingByIdentifier,
+): Casing | undefined {
   if (ts.isIdentifier(expr)) {
-    return getCasingFromHelperName(expr.text) ?? context.casingByIdentifier.get(expr.text);
+    return getCasingFromHelperName(expr.text) ?? casingByIdentifier.get(expr.text);
   }
   if (ts.isPropertyAccessExpression(expr)) {
-    return getCasingFromHelperName(expr.name.text) ?? resolveCasing(expr.expression, context);
+    return (
+      getCasingFromHelperName(expr.name.text) ?? resolveCasing(expr.expression, casingByIdentifier)
+    );
   }
   if (ts.isCallExpression(expr)) {
-    return resolveCasing(expr.expression, context);
+    return resolveCasing(expr.expression, casingByIdentifier);
   }
   return undefined;
 }
