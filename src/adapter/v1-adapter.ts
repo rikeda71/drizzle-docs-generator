@@ -43,7 +43,7 @@ export class V1RelationAdapter implements RelationAdapter {
         }
 
         // Skip reversed relations (they are auto-generated inverse relations)
-        if ((relation as AnyRelation).isReversed) {
+        if ((relation as AnyRelation).isFilterReversed) {
           continue;
         }
 

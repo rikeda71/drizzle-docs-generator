@@ -55,7 +55,7 @@
     "commander": "^15.0.0",
     "drizzle-orm": "1.0.0-rc.5-169397b",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.2"
   },
   "devDependencies": {
     "@types/node": "^24.10.7",
