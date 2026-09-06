@@ -54,13 +54,13 @@
   "dependencies": {
     "@typescript/typescript6": "^6.0.2",
     "commander": "^15.0.0",
-    "drizzle-orm": "1.0.0-rc.4",
+    "drizzle-orm": "1.0.0-rc.5-169397b",
     "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.7",
     "@vitest/coverage-v8": "^4.0.18",
-    "oxfmt": "^0.56.0",
+    "oxfmt": "^0.66.0",
     "oxlint": "^1.42.0",
     "typescript": "^7.0.2",
     "vite": "^8.0.0",
