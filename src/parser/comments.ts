@@ -1,4 +1,5 @@
 import * as ts from "typescript";
+import { getCasingFn, type Casing } from "drizzle-orm/casing";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { isIgnoredDirectory } from "./files";
@@ -46,6 +47,68 @@ export interface SchemaComments {
 }
 
 /**
+ * Column casing carried by a Drizzle helper binding
+ *
+ * - "snake_case" / "camelCase": Drizzle v1 casing helpers (`snakeCase`, `camelCase`)
+ * - "none": other Drizzle helpers that keep property keys as-is (`pgTable`, `pgSchema`, ...)
+ */
+type BindingCasing = Casing | "none";
+
+/**
+ * Drizzle helpers that can appear in the receiver chain of a table definition,
+ * mapped to the casing they apply to column property keys
+ */
+const DRIZZLE_HELPER_CASINGS = new Map<string, BindingCasing>([
+  ["snakeCase", "snake_case"],
+  ["camelCase", "camelCase"],
+  ["pgTable", "none"],
+  ["mysqlTable", "none"],
+  ["sqliteTable", "none"],
+  ["pgSchema", "none"],
+  ["mysqlSchema", "none"],
+  ["mysqlDatabase", "none"],
+]);
+
+/**
+ * Classic table helpers, accepted by name (`pgTable("users", ...)`)
+ */
+const CLASSIC_TABLE_HELPERS = ["pgTable", "mysqlTable", "sqliteTable"];
+
+/**
+ * Schema helpers whose result carries the casing of its receiver
+ * (`snakeCase.schema("auth")`, `pgSchema("auth")`)
+ */
+const SCHEMA_HELPERS = ["schema", "pgSchema", "mysqlSchema", "mysqlDatabase"];
+
+/**
+ * Drizzle bindings imported by a single source file
+ *
+ * - `helpers`: local names of helpers imported from `drizzle-orm*` modules
+ *   (`import { snakeCase as sc } from "drizzle-orm/pg-core"` -> sc: snake_case)
+ * - `namespaces`: namespace imports of `drizzle-orm*` modules
+ *   (`import * as pg from "drizzle-orm/pg-core"` -> pg)
+ *
+ * Kept per file so that the same alias can be bound to different helpers in different files.
+ */
+interface FileBindings {
+  helpers: Map<string, BindingCasing>;
+  namespaces: Set<string>;
+}
+
+/**
+ * Bindings visible from the file being parsed
+ *
+ * - `file`: import bindings of the file
+ * - `schemaVariables`: schema variables declared in any parsed file
+ *   (`export const auth = snakeCase.schema("auth")`), so that a table file can
+ *   import them from another file
+ */
+interface CasingScope {
+  file: FileBindings;
+  schemaVariables: Map<string, BindingCasing>;
+}
+
+/**
  * Get all TypeScript files from a path (file or directory)
  */
 function getTypeScriptFiles(sourcePath: string): string[] {
@@ -81,9 +144,15 @@ function getTypeScriptFiles(sourcePath: string): string[] {
  * Extract JSDoc comments from a Drizzle schema source file or directory
  *
  * Parses TypeScript source files and extracts:
- * - JSDoc comments on table definitions (e.g., pgTable, mysqlTable, sqliteTable)
+ * - JSDoc comments on table definitions
+ *   (e.g., pgTable, mysqlTable, sqliteTable, snakeCase.table, mySchema.table)
  * - JSDoc comments on column definitions within tables
  * - JSDoc comments on enum definitions (pgEnum) and their values
+ *
+ * Column comments are keyed by the database column name. When a column has no
+ * explicit name (Drizzle v1 style, e.g., `authorId: integer()`), the property key is
+ * converted using the casing of the table helper (`snakeCase.table` -> `author_id`),
+ * matching what Drizzle does at runtime.
  *
  * @param sourcePath - Path to the TypeScript schema file or directory
  * @returns Extracted comments organized by table, column, and enum
@@ -91,16 +160,97 @@ function getTypeScriptFiles(sourcePath: string): string[] {
 export function extractComments(sourcePath: string): SchemaComments {
   const comments: Required<SchemaComments> = { tables: {}, enums: {} };
   const files = getTypeScriptFiles(sourcePath);
+  const schemaVariables = new Map<string, BindingCasing>();
 
-  for (const filePath of files) {
+  const scopes = files.map((filePath): [ts.SourceFile, CasingScope] => {
     const sourceCode = readFileSync(filePath, "utf-8");
     const sourceFile = ts.createSourceFile(filePath, sourceCode, ts.ScriptTarget.Latest, true);
+    return [sourceFile, { file: collectImportBindings(sourceFile), schemaVariables }];
+  });
 
-    // Visit all nodes in the source file
-    visitNode(sourceFile, sourceFile, comments);
+  // First pass: collect schema variables across all files,
+  // so that tables can resolve their casing regardless of file/declaration order
+  for (const [sourceFile, scope] of scopes) {
+    collectSchemaVariables(sourceFile, scope);
+  }
+
+  // Second pass: extract table and column comments
+  for (const [sourceFile, scope] of scopes) {
+    visitNode(sourceFile, sourceFile, comments, scope);
   }
 
   return comments;
+}
+
+/**
+ * Check if a module specifier refers to Drizzle ORM
+ * (`drizzle-orm`, `drizzle-orm/pg-core`, ...)
+ */
+function isDrizzleModule(moduleSpecifier: ts.Expression): boolean {
+  return ts.isStringLiteral(moduleSpecifier) && moduleSpecifier.text.startsWith("drizzle-orm");
+}
+
+/**
+ * Collect Drizzle helper bindings imported by a source file
+ *
+ * Only imports from `drizzle-orm*` modules are recorded, so that a `snakeCase`
+ * imported from an unrelated library is not mistaken for the Drizzle helper.
+ */
+function collectImportBindings(sourceFile: ts.SourceFile): FileBindings {
+  const bindings: FileBindings = { helpers: new Map(), namespaces: new Set() };
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !isDrizzleModule(statement.moduleSpecifier)) {
+      continue;
+    }
+    const namedBindings = statement.importClause?.namedBindings;
+    if (!namedBindings) {
+      continue;
+    }
+    if (ts.isNamespaceImport(namedBindings)) {
+      bindings.namespaces.add(namedBindings.name.text);
+    } else {
+      for (const element of namedBindings.elements) {
+        const importedName = element.propertyName?.text ?? element.name.text;
+        const casing = DRIZZLE_HELPER_CASINGS.get(importedName);
+        if (casing) {
+          bindings.helpers.set(element.name.text, casing);
+        }
+      }
+    }
+  }
+
+  return bindings;
+}
+
+/**
+ * Record top-level schema variables created from a Drizzle binding
+ *
+ * - `const auth = snakeCase.schema("auth")` -> auth: snake_case
+ * - `const auth = pgSchema("auth")` -> auth: none
+ *
+ * Only module-level statements are inspected: schema variables are declared there in practice.
+ */
+function collectSchemaVariables(sourceFile: ts.SourceFile, scope: CasingScope): void {
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+    for (const declaration of statement.declarationList.declarations) {
+      const initializer = declaration.initializer;
+      if (
+        ts.isIdentifier(declaration.name) &&
+        initializer &&
+        ts.isCallExpression(initializer) &&
+        SCHEMA_HELPERS.includes(getCallExpressionName(initializer) ?? "")
+      ) {
+        const casing = resolveCasing(initializer, scope);
+        if (casing) {
+          scope.schemaVariables.set(declaration.name.text, casing);
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -110,6 +260,7 @@ function visitNode(
   node: ts.Node,
   sourceFile: ts.SourceFile,
   comments: Required<SchemaComments>,
+  scope: CasingScope,
 ): void {
   // Look for variable declarations that define tables
   if (ts.isVariableStatement(node)) {
@@ -122,10 +273,10 @@ function visitNode(
         ts.isCallExpression(declaration.initializer)
       ) {
         const tableInfo = parseTableDefinition(
-          declaration.name.text,
           declaration.initializer,
           sourceFile,
           jsDocComment,
+          scope,
         );
         if (tableInfo) {
           comments.tables[tableInfo.tableName] = tableInfo.tableComment;
@@ -140,22 +291,21 @@ function visitNode(
     }
   }
 
-  ts.forEachChild(node, (child) => visitNode(child, sourceFile, comments));
+  ts.forEachChild(node, (child) => visitNode(child, sourceFile, comments, scope));
 }
 
 /**
- * Parse a table definition call expression (e.g., pgTable("users", { ... }))
+ * Parse a table definition call expression
+ * (e.g., pgTable("users", { ... }), snakeCase.table("users", { ... }))
  */
 function parseTableDefinition(
-  _variableName: string,
   callExpr: ts.CallExpression,
   sourceFile: ts.SourceFile,
   tableJsDoc: string | undefined,
+  scope: CasingScope,
 ): { tableName: string; tableComment: TableComment } | undefined {
-  const funcName = getCallExpressionName(callExpr);
-
   // Check if this is a table definition function
-  if (!isTableDefinitionFunction(funcName)) {
+  if (!isTableDefinition(callExpr, scope)) {
     return undefined;
   }
 
@@ -166,6 +316,10 @@ function parseTableDefinition(
   }
   const tableName = tableNameArg.text;
 
+  // Casing applied to property keys of columns without an explicit name
+  const casing = resolveCasing(callExpr.expression, scope);
+  const casingFn = getCasingFn(casing === "none" ? undefined : casing);
+
   // Get column definitions from second argument
   const columnsArg = callExpr.arguments[1];
   const columnComments: Record<string, ColumnComment> = {};
@@ -173,7 +327,7 @@ function parseTableDefinition(
   if (columnsArg && ts.isObjectLiteralExpression(columnsArg)) {
     for (const property of columnsArg.properties) {
       if (ts.isPropertyAssignment(property) && ts.isIdentifier(property.name)) {
-        const columnName = extractColumnName(property.initializer);
+        const columnName = extractColumnName(property.initializer, property.name.text, casingFn);
         const columnJsDoc = getJsDocComment(property, sourceFile);
 
         if (columnName && columnJsDoc) {
@@ -270,11 +424,54 @@ function getCallExpressionName(callExpr: ts.CallExpression): string | undefined 
 }
 
 /**
- * Check if a function name is a table definition function
+ * Check if a call expression is a table definition
+ *
+ * - pgTable / mysqlTable / sqliteTable: classic table helpers, accepted by name
+ * - table / withRLS: accepted only when the receiver resolves to a Drizzle binding
+ *   (`snakeCase.table(...)`, `pgSchema("auth").table(...)`, `pgTable.withRLS(...)`),
+ *   so that unrelated `.table()` calls are not mistaken for table definitions
  */
-function isTableDefinitionFunction(funcName: string | undefined): boolean {
+function isTableDefinition(callExpr: ts.CallExpression, scope: CasingScope): boolean {
+  const funcName = getCallExpressionName(callExpr);
   if (!funcName) return false;
-  return ["pgTable", "mysqlTable", "sqliteTable"].includes(funcName);
+  if (CLASSIC_TABLE_HELPERS.includes(funcName)) return true;
+  if (funcName === "table" || funcName === "withRLS") {
+    return (
+      ts.isPropertyAccessExpression(callExpr.expression) &&
+      resolveCasing(callExpr.expression.expression, scope) !== undefined
+    );
+  }
+  return false;
+}
+
+/**
+ * Resolve the column casing from the callee of a table definition
+ *
+ * Walks the receiver chain of expressions such as:
+ * - `snakeCase.table` -> snake_case
+ * - `snakeCase.table.withRLS` -> snake_case
+ * - `camelCase.schema("auth").table` -> camelCase
+ * - `authSchema.table` (where `authSchema = snakeCase.schema("auth")`) -> snake_case
+ * - `pg.snakeCase.table` (where `pg` is a namespace import) -> snake_case
+ * - `pgTable.withRLS`, `pgSchema("auth").table` -> none (no casing conversion)
+ * - anything not bound to a Drizzle helper -> undefined
+ */
+function resolveCasing(expr: ts.Expression, scope: CasingScope): BindingCasing | undefined {
+  if (ts.isIdentifier(expr)) {
+    return scope.file.helpers.get(expr.text) ?? scope.schemaVariables.get(expr.text);
+  }
+  if (ts.isPropertyAccessExpression(expr)) {
+    // Helper accessed through a namespace import (`pg.snakeCase`)
+    if (ts.isIdentifier(expr.expression) && scope.file.namespaces.has(expr.expression.text)) {
+      return DRIZZLE_HELPER_CASINGS.get(expr.name.text);
+    }
+    // `.table`, `.withRLS`, `.schema` keep the casing of their receiver
+    return resolveCasing(expr.expression, scope);
+  }
+  if (ts.isCallExpression(expr)) {
+    return resolveCasing(expr.expression, scope);
+  }
+  return undefined;
 }
 
 /**
@@ -289,9 +486,20 @@ function isEnumDefinitionFunction(funcName: string | undefined): boolean {
 
 /**
  * Extract the actual column name from a column definition
- * e.g., serial("id") -> "id", text("name") -> "name"
+ *
+ * - Explicit name: serial("id") -> "id", text("name") -> "name"
+ * - No name (Drizzle v1 style): integer(), varchar({ length: 255 })
+ *   -> property key converted with the table's casing (e.g., authorId -> author_id)
+ *
+ * @param expr - The column definition expression (including chained calls)
+ * @param propertyKey - The property key of the column in the table definition
+ * @param casingFn - Casing function to apply to the property key
  */
-function extractColumnName(expr: ts.Expression): string | undefined {
+function extractColumnName(
+  expr: ts.Expression,
+  propertyKey: string,
+  casingFn: (name: string) => string,
+): string | undefined {
   // Handle chained calls like serial("id").primaryKey()
   let current = expr;
 
@@ -300,9 +508,13 @@ function extractColumnName(expr: ts.Expression): string | undefined {
       // This is a method call like .primaryKey(), go deeper
       current = current.expression.expression;
     } else if (ts.isIdentifier(current.expression)) {
-      // This is the base call like serial("id")
+      // This is the base call like serial("id") or integer()
       const firstArg = current.arguments[0];
-      if (firstArg && ts.isStringLiteral(firstArg)) {
+      if (!firstArg || ts.isObjectLiteralExpression(firstArg)) {
+        // No explicit name: Drizzle derives the column name from the property key
+        return casingFn(propertyKey);
+      }
+      if (ts.isStringLiteral(firstArg)) {
         return firstArg.text;
       }
       return undefined;
