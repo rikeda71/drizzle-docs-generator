@@ -345,7 +345,7 @@ export class DbmlFormatter implements OutputFormatter {
    * DBML uses double quotes for all database types
    */
   private escapeName(name: string): string {
-    return `"${name}"`;
+    return this.quote(name);
   }
 
   /**
@@ -359,6 +359,13 @@ export class DbmlFormatter implements OutputFormatter {
     if (/^[\p{L}\p{N}_]+$/u.test(value)) {
       return value;
     }
+    return this.quote(value);
+  }
+
+  /**
+   * Wrap a value in DBML double quotes, escaping embedded backslashes and quotes
+   */
+  private quote(value: string): string {
     return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
   }
 

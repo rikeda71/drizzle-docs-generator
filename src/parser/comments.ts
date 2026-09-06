@@ -1,6 +1,7 @@
 import * as ts from "typescript";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { isIgnoredDirectory } from "./files";
 
 /**
  * Comments for a single column
@@ -47,14 +48,6 @@ export interface SchemaComments {
 /**
  * Get all TypeScript files from a path (file or directory)
  */
-/**
- * Directories that never contain user schema files and must not be scanned
- * (dependencies and hidden directories such as .git)
- */
-function isIgnoredDirectory(name: string): boolean {
-  return name === "node_modules" || name.startsWith(".");
-}
-
 function getTypeScriptFiles(sourcePath: string): string[] {
   const stat = statSync(sourcePath);
 
@@ -96,7 +89,7 @@ function getTypeScriptFiles(sourcePath: string): string[] {
  * @returns Extracted comments organized by table, column, and enum
  */
 export function extractComments(sourcePath: string): SchemaComments {
-  const comments: SchemaComments = { tables: {}, enums: {} };
+  const comments: Required<SchemaComments> = { tables: {}, enums: {} };
   const files = getTypeScriptFiles(sourcePath);
 
   for (const filePath of files) {
@@ -113,7 +106,11 @@ export function extractComments(sourcePath: string): SchemaComments {
 /**
  * Recursively visit AST nodes to find table and column definitions
  */
-function visitNode(node: ts.Node, sourceFile: ts.SourceFile, comments: SchemaComments): void {
+function visitNode(
+  node: ts.Node,
+  sourceFile: ts.SourceFile,
+  comments: Required<SchemaComments>,
+): void {
   // Look for variable declarations that define tables
   if (ts.isVariableStatement(node)) {
     const jsDocComment = getJsDocComment(node, sourceFile);
@@ -137,7 +134,6 @@ function visitNode(node: ts.Node, sourceFile: ts.SourceFile, comments: SchemaCom
 
         const enumInfo = parseEnumDefinition(declaration.initializer, sourceFile, jsDocComment);
         if (enumInfo) {
-          comments.enums ??= {};
           comments.enums[enumInfo.enumName] = enumInfo.enumComment;
         }
       }

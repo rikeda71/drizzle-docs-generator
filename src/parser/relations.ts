@@ -1,6 +1,7 @@
 import * as ts from "typescript";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { isIgnoredDirectory } from "./files";
 
 /**
  * Parsed relation from relations() definition
@@ -28,14 +29,6 @@ export interface SchemaRelations {
 /**
  * Get all TypeScript files from a path (file or directory)
  */
-/**
- * Directories that never contain user schema files and must not be scanned
- * (dependencies and hidden directories such as .git)
- */
-function isIgnoredDirectory(name: string): boolean {
-  return name === "node_modules" || name.startsWith(".");
-}
-
 function getTypeScriptFiles(sourcePath: string): string[] {
   const stat = statSync(sourcePath);
 

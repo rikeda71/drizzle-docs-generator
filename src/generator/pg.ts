@@ -44,7 +44,7 @@ export class PgGenerator<
         if (is(column, PgEnumColumn) || is(column, PgEnumObjectColumn)) {
           const enumObj = (column as unknown as { enum: PgEnumLike | undefined }).enum;
           if (enumObj && !enums.has(enumObj.enumName)) {
-            enums.set(enumObj.enumName, [...enumObj.enumValues]);
+            enums.set(enumObj.enumName, enumObj.enumValues);
           }
         }
       }

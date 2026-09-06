@@ -30,6 +30,7 @@ import { register } from "tsx/esm/api";
 import { register as registerCjs } from "tsx/cjs/api";
 import type { IntermediateSchema } from "../types";
 import { resolveSchemaExports } from "./resolve-schema-exports";
+import { isIgnoredDirectory } from "../parser/files";
 
 // Register both ESM and CJS tsx loader hooks.
 // ESM hooks handle import() calls, CJS hooks handle require() calls.
@@ -100,11 +101,7 @@ function getGeneratorClass(dialect: Dialect) {
 /**
  * Check if output directory has existing files
  */
-function hasExistingFiles(
-  outputDir: string,
-  tableNames: string[],
-  hasEnums: boolean = false,
-): string[] {
+function hasExistingFiles(outputDir: string, tableNames: string[], hasEnums: boolean): string[] {
   const existingFiles: string[] = [];
 
   if (!existsSync(outputDir)) {
@@ -187,9 +184,7 @@ function findSchemaFiles(dirPath: string): string[] {
       const fullPath = join(dirPath, entry.name);
 
       if (entry.isDirectory()) {
-        // Skip dependencies and hidden directories (e.g. node_modules, .git):
-        // they never contain user schema files and importing them can fail
-        if (entry.name === "node_modules" || entry.name.startsWith(".")) {
+        if (isIgnoredDirectory(entry.name)) {
           continue;
         }
         // Recursively search subdirectories
@@ -208,9 +203,19 @@ function findSchemaFiles(dirPath: string): string[] {
 }
 
 /**
+ * Resolved schema input
+ */
+interface ResolvedSchema {
+  /** Schema files to import */
+  schemaPaths: string[];
+  /** The resolved file or directory the user passed, used for comment/relation extraction */
+  sourcePath: string;
+}
+
+/**
  * Resolve schema path (file or directory)
  */
-function resolveSchemaPath(schema: string): string[] {
+function resolveSchemaPath(schema: string): ResolvedSchema {
   const schemaPath = resolve(process.cwd(), schema);
 
   // Check if path exists
@@ -227,11 +232,11 @@ function resolveSchemaPath(schema: string): string[] {
       console.error(`Error: No schema files found in directory: ${schemaPath}`);
       process.exit(1);
     }
-    return schemaFiles;
+    return { schemaPaths: schemaFiles, sourcePath: schemaPath };
   }
 
   // Single file
-  return [schemaPath];
+  return { schemaPaths: [schemaPath], sourcePath: schemaPath };
 }
 
 /**
@@ -336,7 +341,7 @@ function writeSingleMarkdownFile(content: string, outputPath: string): void {
  * Run the generate command
  */
 async function runGenerate(schema: string, options: GenerateCommandOptions): Promise<void> {
-  const schemaPaths = resolveSchemaPath(schema);
+  const { schemaPaths, sourcePath } = resolveSchemaPath(schema);
 
   try {
     // Merge all schema modules
@@ -360,13 +365,6 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
         throw error;
       }
     }
-
-    // For multiple files, pass the directory path to extract comments from all files
-    const firstFilePath = schemaPaths[0];
-    if (!firstFilePath) {
-      throw new Error("No schema files found");
-    }
-    const sourcePath = schemaPaths.length === 1 ? firstFilePath : dirname(firstFilePath);
 
     if (options.format === "markdown") {
       // Generate Markdown format
