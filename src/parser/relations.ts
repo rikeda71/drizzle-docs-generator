@@ -1,4 +1,4 @@
-import * as ts from "typescript";
+import * as ts from "@typescript/typescript6";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { isIgnoredDirectory } from "./files";
