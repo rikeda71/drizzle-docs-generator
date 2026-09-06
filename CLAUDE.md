@@ -60,9 +60,10 @@ pnpm format && pnpm lint && pnpm typecheck && pnpm test:run
 
 ## Dependencies
 
-- `typescript`: AST parsing
+- `@typescript/typescript6`: AST parsing (JavaScript Compiler API; TypeScript 7 dropped it from the `typescript` package root)
 - `commander`: CLI framework
 - `drizzle-orm`: Drizzle ORM v1 beta
+- `typescript` (dev only): type checking / declaration emit with the TypeScript 7 native compiler
 
 ## Type Guidelines
 

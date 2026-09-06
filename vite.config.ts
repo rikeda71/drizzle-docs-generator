@@ -21,7 +21,7 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       external: [
-        "typescript",
+        "@typescript/typescript6",
         "commander",
         "drizzle-orm",
         "tsx",
