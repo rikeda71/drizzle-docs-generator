@@ -685,6 +685,106 @@ export const auth = snakeCase.schema("auth");
     });
   });
 
+  describe("Drizzle binding verification", () => {
+    it("should resolve casing helpers through a namespace import", () => {
+      const schemaCode = `
+import * as pg from "drizzle-orm/pg-core";
+import { integer } from "drizzle-orm/pg-core";
+
+/** Users table */
+export const users = pg.snakeCase.table("users", {
+  /** user's id */
+  userId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-namespace-import.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users.comment).toBe("Users table");
+      expect(comments.tables.users.columns.user_id?.comment).toBe("user's id");
+    });
+
+    it("should scope import aliases per file", () => {
+      const schemaDir = join(TEST_DIR, "v1-alias-per-file-dir");
+      mkdirSync(schemaDir, { recursive: true });
+      // The same alias `c` is bound to different casing helpers in each file
+      writeFileSync(
+        join(schemaDir, "a.ts"),
+        `
+import { integer, snakeCase as c } from "drizzle-orm/pg-core";
+
+export const posts = c.table("posts", {
+  /** author's id */
+  authorId: integer(),
+});
+`,
+      );
+      writeFileSync(
+        join(schemaDir, "b.ts"),
+        `
+import { int, camelCase as c } from "drizzle-orm/mysql-core";
+
+export const comments = c.table("comments", {
+  /** post's id */
+  post_id: int(),
+});
+`,
+      );
+
+      const comments = extractComments(schemaDir);
+
+      expect(comments.tables.posts.columns.author_id?.comment).toBe("author's id");
+      expect(comments.tables.comments.columns.postId?.comment).toBe("post's id");
+    });
+
+    it("should ignore casing helpers imported from non-Drizzle modules", () => {
+      const schemaCode = `
+import { integer } from "drizzle-orm/pg-core";
+import { snakeCase } from "change-case";
+
+/** Not a Drizzle table */
+export const users = snakeCase.table("users", {
+  /** user's id */
+  userId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-non-drizzle-import.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users).toBeUndefined();
+    });
+
+    it("should ignore .table() calls whose receiver is not a Drizzle binding", () => {
+      const schemaCode = `
+import { integer } from "drizzle-orm/pg-core";
+import { builder } from "./builder";
+
+/** Not a Drizzle table */
+export const users = builder.table("users", {
+  /** user's id */
+  userId: integer(),
+});
+
+/** Not a Drizzle table either */
+export const posts = builder.snakeCase.table("posts", {
+  /** post's id */
+  postId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-unknown-receiver.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users).toBeUndefined();
+      expect(comments.tables.posts).toBeUndefined();
+    });
+  });
+
   describe("Columns without explicit names", () => {
     it("should use the property key as-is for pgTable columns without a name", () => {
       const schemaCode = `
