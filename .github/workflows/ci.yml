@@ -83,3 +83,35 @@ jobs:
             fi
           done
           echo "✓ All v0/v1 example pairs exist and produce identical DBML output"
+
+  backward-compatibility:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        drizzle-version: ["0.45.2"]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package
+        run: pnpm build
+
+      - name: Install compatibility Drizzle ORM
+        run: |
+          pnpm pkg set "dependencies.drizzle-orm=${{ matrix.drizzle-version }}"
+          pnpm install --no-frozen-lockfile
+
+      - name: Test v0 schema with compatibility Drizzle ORM
+        run: pnpm exec vitest run --config vitest.integration.config.ts src/cli/cli.integration.postgresql.test.ts -t "PostgreSQL v0"
