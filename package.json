@@ -58,6 +58,7 @@
     "tsx": "^4.21.0"
   },
   "devDependencies": {
+    "@dbml/core": "10.1.1",
     "@types/node": "^24.10.7",
     "@vitest/coverage-v8": "^4.0.18",
     "oxfmt": "^0.66.0",

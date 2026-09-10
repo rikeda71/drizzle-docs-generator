@@ -285,8 +285,8 @@ export class DbmlFormatter implements OutputFormatter {
    * Format a relation definition to DBML Ref
    */
   private formatRelation(dbml: DbmlBuilder, relation: RelationDefinition): void {
-    const from = `${this.escapeName(relation.fromTable)}.${relation.fromColumns.map((c) => this.escapeName(c)).join(", ")}`;
-    const to = `${this.escapeName(relation.toTable)}.${relation.toColumns.map((c) => this.escapeName(c)).join(", ")}`;
+    const from = this.formatRelationSide(relation.fromTable, relation.fromColumns);
+    const to = this.formatRelationSide(relation.toTable, relation.toColumns);
     const type = this.getRelationType(relation.type);
 
     let refLine = `Ref: ${from} ${type} ${to}`;
@@ -304,6 +304,19 @@ export class DbmlFormatter implements OutputFormatter {
     }
 
     dbml.line(refLine);
+  }
+
+  /**
+   * Format one side of a Ref
+   *
+   * A single column is `"table"."column"`; a composite key is
+   * `"table".("a", "b")` — DBML requires the parentheses whenever a side
+   * has more than one column.
+   */
+  private formatRelationSide(table: string, columns: string[]): string {
+    const escaped = columns.map((c) => this.escapeName(c));
+    const columnList = escaped.length > 1 ? `(${escaped.join(", ")})` : escaped.join(", ");
+    return `${this.escapeName(table)}.${columnList}`;
   }
 
   /**
