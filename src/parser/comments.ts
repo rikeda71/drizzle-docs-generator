@@ -1,5 +1,4 @@
 import * as ts from "@typescript/typescript6";
-import { getCasingFn, type Casing } from "drizzle-orm/casing";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { isIgnoredDirectory } from "./files";
@@ -52,7 +51,37 @@ export interface SchemaComments {
  * - "snake_case" / "camelCase": Drizzle v1 casing helpers (`snakeCase`, `camelCase`)
  * - "none": other Drizzle helpers that keep property keys as-is (`pgTable`, `pgSchema`, ...)
  */
+type Casing = "snake_case" | "camelCase";
 type BindingCasing = Casing | "none";
+
+function getCasingFn(casing: Casing | undefined): (name: string) => string {
+  if (casing === "snake_case") return toSnakeCase;
+  if (casing === "camelCase") return toCamelCase;
+  return (name) => name;
+}
+
+function toSnakeCase(input: string): string {
+  return (
+    input
+      .replace(/['\u2019]/g, "")
+      .match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g)
+      ?.map((word) => word.toLowerCase())
+      .join("_") ?? ""
+  );
+}
+
+function toCamelCase(input: string): string {
+  return (
+    input
+      .replace(/['\u2019]/g, "")
+      .match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g)
+      ?.reduce(
+        (acc, word, i) =>
+          acc + (i === 0 ? word.toLowerCase() : `${word.charAt(0).toUpperCase()}${word.slice(1)}`),
+        "",
+      ) ?? ""
+  );
+}
 
 /**
  * Drizzle helpers that can appear in the receiver chain of a table definition,
