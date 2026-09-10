@@ -114,4 +114,4 @@ jobs:
           pnpm install --no-frozen-lockfile
 
       - name: Test v0 schema with compatibility Drizzle ORM
-        run: pnpm exec vitest run src/cli/cli.integration.postgresql.test.ts -t "PostgreSQL v0"
+        run: pnpm exec vitest run --config vitest.integration.config.ts src/cli/cli.integration.postgresql.test.ts -t "PostgreSQL v0"
