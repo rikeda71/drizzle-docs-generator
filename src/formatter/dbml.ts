@@ -285,8 +285,8 @@ export class DbmlFormatter implements OutputFormatter {
    * Format a relation definition to DBML Ref
    */
   private formatRelation(dbml: DbmlBuilder, relation: RelationDefinition): void {
-    const from = `${this.escapeName(relation.fromTable)}.${relation.fromColumns.map((c) => this.escapeName(c)).join(", ")}`;
-    const to = `${this.escapeName(relation.toTable)}.${relation.toColumns.map((c) => this.escapeName(c)).join(", ")}`;
+    const from = this.formatRelationSide(relation.fromTable, relation.fromColumns);
+    const to = this.formatRelationSide(relation.toTable, relation.toColumns);
     const type = this.getRelationType(relation.type);
 
     let refLine = `Ref: ${from} ${type} ${to}`;
@@ -304,6 +304,19 @@ export class DbmlFormatter implements OutputFormatter {
     }
 
     dbml.line(refLine);
+  }
+
+  /**
+   * Format one side of a Ref
+   *
+   * A single column is `"table"."column"`; a composite key is
+   * `"table".("a", "b")` — DBML requires the parentheses whenever a side
+   * has more than one column.
+   */
+  private formatRelationSide(table: string, columns: string[]): string {
+    const escaped = columns.map((c) => this.escapeName(c));
+    const columnList = escaped.length > 1 ? `(${escaped.join(", ")})` : escaped.join(", ");
+    return `${this.escapeName(table)}.${columnList}`;
   }
 
   /**
@@ -325,9 +338,9 @@ export class DbmlFormatter implements OutputFormatter {
   /**
    * Normalize SQL type for DBML compatibility
    *
-   * Converts types with "with time zone" suffix to their short form
-   * (e.g., "timestamp(3) with time zone" -> "timestamptz(3)")
-   * because DBML parsers cannot handle the multi-word suffix.
+   * Converts multi-word types to their one-word aliases because DBML's type
+   * grammar takes a single token: "timestamp(3) with time zone" ->
+   * "timestamptz(3)", "double precision" -> "float8" (PostgreSQL's own alias).
    */
   private normalizeType(type: string): string {
     return type
@@ -336,7 +349,8 @@ export class DbmlFormatter implements OutputFormatter {
       )
       .replace(/^(time)\s*(\([^)]*\))?\s+with time zone$/i, (_match, _base, precision) =>
         precision ? `timetz${precision}` : "timetz",
-      );
+      )
+      .replace(/^double\s+precision$/i, "float8");
   }
 
   /**

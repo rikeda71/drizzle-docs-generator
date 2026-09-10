@@ -1,3 +1,4 @@
+import { Parser } from "@dbml/core";
 import { describe, it, expect } from "vitest";
 import { DbmlFormatter } from "./dbml";
 import type { IntermediateSchema } from "../types";
@@ -458,6 +459,82 @@ describe("DbmlFormatter", () => {
       );
     });
 
+    it("should parenthesize both sides of a composite foreign key", () => {
+      // A subtype table keyed on (part_id, category) that references the
+      // parent's composite unique (id, category). DBML requires
+      // `"table".("a", "b")` for a multi-column side.
+      const schema: IntermediateSchema = {
+        databaseType: "postgresql",
+        tables: [
+          {
+            name: "part",
+            columns: [
+              {
+                name: "id",
+                type: "text",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "category",
+                type: "text",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [
+              { name: "part_id_category_key", type: "unique", columns: ["id", "category"] },
+            ],
+          },
+          {
+            name: "part_cpu",
+            columns: [
+              {
+                name: "part_id",
+                type: "text",
+                nullable: false,
+                primaryKey: true,
+                unique: false,
+              },
+              {
+                name: "category",
+                type: "text",
+                nullable: false,
+                primaryKey: false,
+                unique: false,
+              },
+            ],
+            indexes: [],
+            constraints: [],
+          },
+        ],
+        relations: [
+          {
+            fromTable: "part_cpu",
+            fromColumns: ["part_id", "category"],
+            toTable: "part",
+            toColumns: ["id", "category"],
+            type: "many-to-one",
+            onDelete: "CASCADE",
+          },
+        ],
+        enums: [],
+      };
+
+      const formatter = new DbmlFormatter();
+      const dbml = formatter.format(schema);
+
+      expect(dbml).toContain(
+        'Ref: "part_cpu".("part_id", "category") > "part".("id", "category") [delete: cascade]',
+      );
+      // The reference parser is the arbiter: without the parentheses it
+      // rejects the file, so this is what proves the output is valid DBML.
+      expect(() => new Parser().parse(dbml, "dbml")).not.toThrow();
+    });
+
     it("should format PostgreSQL enums", () => {
       const schema: IntermediateSchema = {
         databaseType: "postgresql",
@@ -795,6 +872,8 @@ describe("DbmlFormatter", () => {
       { input: "time(3) with time zone", expected: "timetz(3)" },
       { input: "timestamp", expected: "timestamp" },
       { input: "timestamp(3)", expected: "timestamp(3)" },
+      { input: "double precision", expected: "float8" },
+      { input: "real", expected: "real" },
     ])("should normalize '$input' to '$expected'", ({ input, expected }) => {
       const schema: IntermediateSchema = {
         databaseType: "postgresql",
@@ -822,6 +901,8 @@ describe("DbmlFormatter", () => {
       const dbml = formatter.format(schema);
 
       expect(dbml).toContain(`"col" ${expected}`);
+      // Every normalized type must be a single token the reference parser accepts.
+      expect(() => new Parser().parse(dbml, "dbml")).not.toThrow();
     });
   });
 
