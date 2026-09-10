@@ -338,9 +338,9 @@ export class DbmlFormatter implements OutputFormatter {
   /**
    * Normalize SQL type for DBML compatibility
    *
-   * Converts types with "with time zone" suffix to their short form
-   * (e.g., "timestamp(3) with time zone" -> "timestamptz(3)")
-   * because DBML parsers cannot handle the multi-word suffix.
+   * Converts multi-word types to their one-word aliases because DBML's type
+   * grammar takes a single token: "timestamp(3) with time zone" ->
+   * "timestamptz(3)", "double precision" -> "float8" (PostgreSQL's own alias).
    */
   private normalizeType(type: string): string {
     return type
@@ -349,7 +349,8 @@ export class DbmlFormatter implements OutputFormatter {
       )
       .replace(/^(time)\s*(\([^)]*\))?\s+with time zone$/i, (_match, _base, precision) =>
         precision ? `timetz${precision}` : "timetz",
-      );
+      )
+      .replace(/^double\s+precision$/i, "float8");
   }
 
   /**
