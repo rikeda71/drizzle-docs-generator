@@ -1,6 +1,24 @@
-import { type Table, getTableName, is, One } from "drizzle-orm";
-import type { AnyRelation, TableRelationalConfig } from "drizzle-orm/relations";
+import { Column, type Table, getTableName, is, One } from "drizzle-orm";
+import type {
+  AnyRelation,
+  RelationsBuilderColumnBase,
+  TableRelationalConfig,
+} from "drizzle-orm/relations";
 import type { RelationAdapter, UnifiedRelation } from "./types";
+
+/**
+ * Extract the database column name from a v1 RelationsBuilderColumnBase
+ *
+ * `sourceColumns`/`targetColumns` wrap the underlying FieldValue (Column | SQL | ...);
+ * relation columns are always plain table columns, so narrow with `is()` to reach `.name`.
+ */
+function getRelationColumnName(col: RelationsBuilderColumnBase): string {
+  const fieldValue = col._.column;
+  if (!is(fieldValue, Column)) {
+    throw new Error("Expected relation column to be a table column");
+  }
+  return fieldValue.name;
+}
 
 /**
  * Adapter for extracting relations from v1 defineRelations() API
@@ -49,8 +67,8 @@ export class V1RelationAdapter implements RelationAdapter {
 
         // Get source and target column names (using official Relation properties)
         const rel = relation as AnyRelation;
-        const sourceColumns = rel.sourceColumns.map((col) => col.name);
-        const targetColumns = rel.targetColumns.map((col) => col.name);
+        const sourceColumns = rel.sourceColumns.map(getRelationColumnName);
+        const targetColumns = rel.targetColumns.map(getRelationColumnName);
 
         if (sourceColumns.length === 0 || targetColumns.length === 0) {
           continue;
@@ -122,8 +140,8 @@ export class V1RelationAdapter implements RelationAdapter {
         continue;
       }
 
-      const relSourceCols = rel.sourceColumns.map((col) => col.name);
-      const relTargetCols = rel.targetColumns.map((col) => col.name);
+      const relSourceCols = rel.sourceColumns.map(getRelationColumnName);
+      const relTargetCols = rel.targetColumns.map(getRelationColumnName);
 
       // Check if columns match in reverse
       if (
