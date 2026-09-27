@@ -58,10 +58,10 @@
     "tsx": "^4.21.0"
   },
   "devDependencies": {
-    "@dbml/core": "10.1.1",
+    "@dbml/core": "10.2.0",
     "@types/node": "^24.10.7",
     "@vitest/coverage-v8": "^5.0.1",
-    "oxfmt": "^0.68.0",
+    "oxfmt": "^0.70.0",
     "oxlint": "^1.42.0",
     "typescript": "^7.0.2",
     "vite": "^8.0.0",
