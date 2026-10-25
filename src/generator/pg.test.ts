@@ -1150,7 +1150,9 @@ describe("PgGenerator.toIntermediateSchema with enums", () => {
 
     // Simulate a PgEnumColumn class coming from another copy of drizzle-orm:
     // it carries the same entityKind brand but is not the same class object,
-    // so `instanceof PgEnumColumn` is false while drizzle's `is()` is true.
+    // so it is not in PgEnumColumn's prototype chain while drizzle's `is()` is true.
+    // (drizzle-orm >= 1.0.0-rc.5 overrides Symbol.hasInstance with `is()`, so
+    // `instanceof` can no longer verify this precondition.)
     class ForeignPgEnumColumn extends PgColumn {
       static override readonly [entityKind]: string = "PgEnumColumn";
       readonly enum = { enumName: "status", enumValues: ["active", "inactive"] };
@@ -1180,7 +1182,7 @@ describe("PgGenerator.toIntermediateSchema with enums", () => {
     (users as unknown as Record<symbol, Record<string, unknown>>)[symbolColumns!].status =
       foreignColumn;
 
-    expect(foreignColumn instanceof PgEnumColumn).toBe(false);
+    expect(Object.prototype.isPrototypeOf.call(PgEnumColumn.prototype, foreignColumn)).toBe(false);
 
     const generator = new PgGenerator({ schema: { users } });
     const schema = generator.toIntermediateSchema();
