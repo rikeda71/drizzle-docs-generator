@@ -74,9 +74,11 @@ export class MarkdownFormatter implements OutputFormatter {
    */
   format(schema: IntermediateSchema): string {
     const lines: string[] = [];
+    // Computed once for the whole document
+    const anchors = this.getTableAnchors(schema);
 
     // Generate index section
-    lines.push(this.generateIndex(schema));
+    lines.push(this.renderIndex(schema, anchors));
 
     // Generate enum documentation if any
     if (schema.enums.length > 0) {
@@ -91,7 +93,7 @@ export class MarkdownFormatter implements OutputFormatter {
       lines.push("");
       lines.push("---");
       lines.push("");
-      lines.push(this.generateTableDoc(table, schema));
+      lines.push(this.renderTableDoc(table, schema, anchors));
     }
 
     return lines.join("\n").trim();
@@ -104,6 +106,13 @@ export class MarkdownFormatter implements OutputFormatter {
    * @returns Markdown string for the index
    */
   generateIndex(schema: IntermediateSchema): string {
+    return this.renderIndex(schema, this.getTableAnchors(schema));
+  }
+
+  /**
+   * Render the index section with precomputed table heading anchors
+   */
+  private renderIndex(schema: IntermediateSchema, anchors: Map<string, string>): string {
     const lines: string[] = [];
 
     lines.push("# Tables");
@@ -122,7 +131,7 @@ export class MarkdownFormatter implements OutputFormatter {
     for (const table of schema.tables) {
       const tableName = qualifyTableName(table.name, table.schema);
       const name = this.options.useRelativeLinks
-        ? this.createTableLink(tableName, schema)
+        ? this.createTableLink(tableName, anchors)
         : tableName;
       const columnCount = table.columns.length;
       const comment =
@@ -176,6 +185,17 @@ export class MarkdownFormatter implements OutputFormatter {
    * @returns Markdown string for the table documentation
    */
   generateTableDoc(table: TableDefinition, schema: IntermediateSchema): string {
+    return this.renderTableDoc(table, schema, this.getTableAnchors(schema));
+  }
+
+  /**
+   * Render documentation for a single table with precomputed table heading anchors
+   */
+  private renderTableDoc(
+    table: TableDefinition,
+    schema: IntermediateSchema,
+    anchors: Map<string, string>,
+  ): string {
     const lines: string[] = [];
     // Tables in a named schema are documented by their qualified name (`billing.users`)
     const tableName = qualifyTableName(table.name, table.schema);
@@ -191,7 +211,7 @@ export class MarkdownFormatter implements OutputFormatter {
     }
 
     // Columns section
-    lines.push(this.generateColumnsTable(table.columns, tableName, schema));
+    lines.push(this.generateColumnsTable(table.columns, tableName, schema, anchors));
 
     // Constraints section
     if (this.options.includeConstraints && table.constraints.length > 0) {
@@ -209,7 +229,7 @@ export class MarkdownFormatter implements OutputFormatter {
     const tableRelations = this.getTableRelations(tableName, schema.relations);
     if (tableRelations.length > 0) {
       lines.push("");
-      lines.push(this.generateRelationsTable(tableRelations, tableName, schema));
+      lines.push(this.generateRelationsTable(tableRelations, tableName, anchors));
     }
 
     return lines.join("\n");
@@ -222,6 +242,7 @@ export class MarkdownFormatter implements OutputFormatter {
     columns: ColumnDefinition[],
     tableName: string,
     schema: IntermediateSchema,
+    anchors: Map<string, string>,
   ): string {
     const lines: string[] = [];
 
@@ -250,8 +271,8 @@ export class MarkdownFormatter implements OutputFormatter {
       const type = this.escapeMarkdown(column.type);
       const defaultVal = column.defaultValue !== undefined ? `\`${column.defaultValue}\`` : "-";
       const nullable = column.nullable ? "YES" : "NO";
-      const childrenStr = children.length > 0 ? this.formatRelationLinks(children, schema) : "-";
-      const parentsStr = parents.length > 0 ? this.formatRelationLinks(parents, schema) : "-";
+      const childrenStr = children.length > 0 ? this.formatRelationLinks(children, anchors) : "-";
+      const parentsStr = parents.length > 0 ? this.formatRelationLinks(parents, anchors) : "-";
       const comment =
         this.options.includeComments && column.comment ? this.escapeMarkdown(column.comment) : "-";
 
@@ -316,7 +337,7 @@ export class MarkdownFormatter implements OutputFormatter {
   private generateRelationsTable(
     relations: RelationDefinition[],
     tableName: string,
-    schema: IntermediateSchema,
+    anchors: Map<string, string>,
   ): string {
     const lines: string[] = [];
 
@@ -336,10 +357,10 @@ export class MarkdownFormatter implements OutputFormatter {
 
       // Add links if enabled
       const parentLink = this.options.useRelativeLinks
-        ? this.createTableLink(toTable, schema, parent)
+        ? this.createTableLink(toTable, anchors, parent)
         : parent;
       const childLink = this.options.useRelativeLinks
-        ? this.createTableLink(fromTable, schema, child)
+        ? this.createTableLink(fromTable, anchors, child)
         : child;
 
       // Highlight the current table
@@ -473,12 +494,12 @@ export class MarkdownFormatter implements OutputFormatter {
    */
   private formatRelationLinks(
     relations: Array<{ table: string; column: string }>,
-    schema: IntermediateSchema,
+    anchors: Map<string, string>,
   ): string {
     return relations
       .map((r) => {
         const text = `${r.table}.${r.column}`;
-        return this.options.useRelativeLinks ? this.createTableLink(r.table, schema, text) : text;
+        return this.options.useRelativeLinks ? this.createTableLink(r.table, anchors, text) : text;
       })
       .join(", ");
   }
@@ -532,18 +553,18 @@ export class MarkdownFormatter implements OutputFormatter {
    * Create a table link based on the configured link format
    *
    * @param tableName - The qualified table name
-   * @param schema - The full schema (for resolving heading anchors)
+   * @param anchors - Table heading anchors computed by `getTableAnchors` for the current render
    */
   private createTableLink(
     tableName: string,
-    schema: IntermediateSchema,
+    anchors: Map<string, string>,
     displayText?: string,
   ): string {
     const text = displayText || tableName;
     if (this.options.linkFormat === "file") {
       return `[${text}](./${tableName}.md)`;
     }
-    const anchor = this.getTableAnchors(schema).get(tableName) ?? tableName.replace(/\./g, "");
+    const anchor = anchors.get(tableName) ?? tableName.replace(/\./g, "");
     return `[${text}](#${anchor})`;
   }
 
@@ -559,8 +580,15 @@ export class MarkdownFormatter implements OutputFormatter {
    * A table heading whose ID is not shared with any other heading keeps its current anchor.
    * Otherwise the anchor is the GitHub heading ID itself (lowercased, with the suffix if any),
    * so that each link targets the right one of the colliding headings.
+   *
+   * Returns an empty map when no anchor links are generated (file links or links disabled).
+   * Computed once per render and not cached, so changes to the schema are always reflected.
    */
   private getTableAnchors(schema: IntermediateSchema): Map<string, string> {
+    if (!this.options.useRelativeLinks || this.options.linkFormat === "file") {
+      return new Map();
+    }
+
     // Headings in document order; `tableName` is set for table headings
     const headings: Array<{ text: string; tableName?: string }> = [{ text: "Tables" }];
     if (schema.enums.length > 0) {

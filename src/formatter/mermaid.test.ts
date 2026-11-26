@@ -1694,4 +1694,24 @@ describe("schema-qualified tables (#176)", () => {
     expect(focused).toContain("    billing_users_1 {");
     expect(focused).toContain("billing_users_1 }o--|| billing_users");
   });
+
+  it("should keep a dotted default-schema table distinct from the same name in a schema", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // default-schema "billing.users" and "users" in schema "billing" share a qualified name
+    schema.tables[0].name = "billing.users";
+    schema.relations[0].toTable = "billing.users";
+    const formatter = new MermaidErDiagramFormatter();
+
+    const out = formatter.format(schema);
+    expect(out).toContain("    billing_users {");
+    expect(out).toContain("    billing_users_1 {");
+    expect(out).toContain("billing_users_1 }o--|| billing_users");
+    expect(out).not.toContain("billing_users }o--|| billing_users");
+
+    // FK markers stay on the referencing table only
+    const referenced = out.slice(out.indexOf("    billing_users {"));
+    expect(referenced.slice(0, referenced.indexOf("}"))).not.toContain("FK");
+    const referencing = out.slice(out.indexOf("    billing_users_1 {"));
+    expect(referencing.slice(0, referencing.indexOf("}"))).toContain("int user_id FK");
+  });
 });

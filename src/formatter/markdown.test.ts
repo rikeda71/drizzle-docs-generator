@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { MarkdownFormatter } from "./markdown";
 import type { IntermediateSchema } from "../types";
 
@@ -1429,5 +1429,31 @@ describe("schema-qualified tables (#176)", () => {
     expect(md).toContain("| [users](#users) | 2 |");
     expect(md).toContain("| [columns](#columns-1) | 2 |");
     expect(md).toContain("[columns.user_id](#columns-1)");
+  });
+
+  it("should compute the heading anchors once per render", () => {
+    const schema = buildSchemaQualifiedSchema();
+    const formatter = new MarkdownFormatter();
+    const spy = vi.spyOn(
+      formatter as unknown as { getTableAnchors: (s: IntermediateSchema) => Map<string, string> },
+      "getTableAnchors",
+    );
+
+    formatter.format(schema);
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    spy.mockClear();
+    formatter.generateTableDoc(schema.tables[1], schema);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("should reflect schema changes between renders", () => {
+    const schema = buildSchemaQualifiedSchema();
+    const formatter = new MarkdownFormatter();
+    expect(formatter.format(schema)).toContain("| [billing.users](#billingusers) | 2 |");
+
+    schema.tables[0].name = "billingusers";
+    schema.relations[0].toTable = "billingusers";
+    expect(formatter.format(schema)).toContain("| [billing.users](#billingusers-1) | 2 |");
   });
 });
