@@ -13,6 +13,7 @@ import {
   unique,
   index,
   snakeCase,
+  pgSchema,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm/_relations";
 import { entityKind } from "drizzle-orm";
@@ -1479,5 +1480,186 @@ export const profilesRelations = relations(profiles, ({ one }) => ({
     expect(schema.relations[0].fromTable).toBe("posts");
     expect(schema.relations[0].toTable).toBe("users");
     expect(schema.relations[0].type).toBe("many-to-one");
+  });
+});
+
+describe("pgGenerate with pgSchema tables (#176)", () => {
+  const SCHEMA_TEST_DIR = join(import.meta.dirname, "__test_fixtures_pg_schema__");
+
+  beforeAll(() => {
+    mkdirSync(SCHEMA_TEST_DIR, { recursive: true });
+  });
+
+  afterAll(() => {
+    rmSync(SCHEMA_TEST_DIR, { recursive: true, force: true });
+  });
+
+  function createSchema() {
+    const billing = pgSchema("billing");
+    const users = pgTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name").notNull(),
+    });
+    const billingUsers = billing.table("users", {
+      id: serial("id").primaryKey(),
+      userId: integer("user_id")
+        .notNull()
+        .references(() => users.id),
+    });
+    return { users, billingUsers };
+  }
+
+  it("should qualify pgSchema tables and their foreign keys with the schema", async () => {
+    const { Parser } = await import("@dbml/core");
+    const { users, billingUsers } = createSchema();
+
+    const dbml = pgGenerate({ schema: { billingUsers, users } });
+
+    expect(dbml).toBe(
+      [
+        'Table "billing"."users" {',
+        '  "id" serial [primary key, not null, increment]',
+        '  "user_id" integer [not null]',
+        "}",
+        "",
+        'Table "users" {',
+        '  "id" serial [primary key, not null, increment]',
+        '  "name" text [not null]',
+        "}",
+        "",
+        'Ref: "billing"."users"."user_id" > "users"."id"',
+      ].join("\n"),
+    );
+    // Same-named tables in different schemas must not collide
+    expect(() => Parser.parse(dbml, "dbmlv2")).not.toThrow();
+  });
+
+  it("should set the schema on table, constraint, and relation definitions", () => {
+    const { users, billingUsers } = createSchema();
+
+    const schema = new PgGenerator({ schema: { users, billingUsers } }).toIntermediateSchema();
+
+    expect(schema.tables.map((t) => [t.schema, t.name])).toEqual([
+      [undefined, "users"],
+      ["billing", "users"],
+    ]);
+    expect(schema.relations).toEqual([
+      expect.objectContaining({
+        fromSchema: "billing",
+        fromTable: "users",
+        toSchema: undefined,
+        toTable: "users",
+      }),
+    ]);
+    const fk = schema.tables[1].constraints.find((c) => c.type === "foreign_key");
+    expect(fk).toMatchObject({ referencedTable: "users", referencedSchema: undefined });
+  });
+
+  it("should keep JSDoc comments of same-named tables in different schemas distinct", () => {
+    const filePath = join(SCHEMA_TEST_DIR, "schema-comments.ts");
+    writeFileSync(
+      filePath,
+      `
+import { pgTable, pgSchema, serial, integer } from "drizzle-orm/pg-core";
+
+export const billing = pgSchema("billing");
+
+/** Billing users */
+export const billingUsers = billing.table("users", {
+  /** Billing user id */
+  id: serial("id").primaryKey(),
+});
+
+/** Public users */
+export const users = pgTable("users", {
+  /** Public user id */
+  id: serial("id").primaryKey(),
+});
+`,
+    );
+    const billing = pgSchema("billing");
+    const billingUsers = billing.table("users", { id: serial("id").primaryKey() });
+    const users = pgTable("users", { id: serial("id").primaryKey() });
+
+    const schema = new PgGenerator({
+      schema: { billingUsers, users },
+      source: filePath,
+    }).toIntermediateSchema();
+
+    expect(schema.tables[0]).toMatchObject({ schema: "billing", comment: "Billing users" });
+    expect(schema.tables[0].columns[0].comment).toBe("Billing user id");
+    expect(schema.tables[1]).toMatchObject({ schema: undefined, comment: "Public users" });
+    expect(schema.tables[1].columns[0].comment).toBe("Public user id");
+  });
+
+  it("should fall back to bare-name comments for a schema table without a same-named public table", () => {
+    const billing = pgSchema("billing");
+    const invoices = billing.table("invoices", { id: serial("id").primaryKey() });
+    const users = pgTable("users", { id: serial("id").primaryKey() });
+    const billingUsers = billing.table("users", { id: serial("id").primaryKey() });
+    const comments: SchemaComments = {
+      tables: {
+        invoices: { comment: "Invoices", columns: {} },
+        users: { comment: "Public users", columns: {} },
+      },
+    };
+
+    const schema = new PgGenerator({
+      schema: { invoices, users, billingUsers },
+      comments,
+    }).toIntermediateSchema();
+
+    expect(schema.tables.map((t) => t.comment)).toEqual(["Invoices", "Public users", undefined]);
+  });
+
+  it("should qualify relations from defineRelations() between schema tables", async () => {
+    const { defineRelations } = await import("drizzle-orm");
+    const { users, billingUsers } = createSchema();
+    const tables = { users, billingUsers };
+    const rels = defineRelations(tables, (r) => ({
+      users: { billingUsers: r.many.billingUsers() },
+      billingUsers: {
+        user: r.one.users({ from: r.billingUsers.userId, to: r.users.id }),
+      },
+    }));
+
+    const dbml = pgGenerate({ schema: { ...tables, rels } });
+
+    expect(dbml).toContain('Ref: "billing"."users"."user_id" > "users"."id"');
+    expect(dbml.match(/^Ref:/gm)).toHaveLength(1);
+  });
+
+  it("should qualify relations from v0 relations() between schema tables", () => {
+    const filePath = join(SCHEMA_TEST_DIR, "schema-v0-relations.ts");
+    writeFileSync(
+      filePath,
+      `
+import { pgTable, pgSchema, serial, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm/_relations";
+
+export const billing = pgSchema("billing");
+export const users = pgTable("users", { id: serial("id").primaryKey() });
+export const billingUsers = billing.table("users", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+});
+
+export const billingUsersRelations = relations(billingUsers, ({ one }) => ({
+  user: one(users, { fields: [billingUsers.userId], references: [users.id] }),
+}));
+`,
+    );
+    const { users, billingUsers } = createSchema();
+    const billingUsersRelations = relations(billingUsers, ({ one }) => ({
+      user: one(users, { fields: [billingUsers.userId], references: [users.id] }),
+    }));
+
+    const dbml = pgGenerate({
+      schema: { users, billingUsers, billingUsersRelations },
+      source: filePath,
+    });
+
+    expect(dbml).toContain('Ref: "billing"."users"."user_id" > "users"."id"');
+    expect(dbml.match(/^Ref:/gm)).toHaveLength(1);
   });
 });

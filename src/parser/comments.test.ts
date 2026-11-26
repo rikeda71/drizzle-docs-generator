@@ -787,8 +787,8 @@ export const users = auth.table("users", {
 
       const comments = extractComments(filePath);
 
-      expect(comments.tables.users.comment).toBe("Auth users");
-      expect(comments.tables.users.columns.userId?.comment).toBe("user's id");
+      expect(comments.tables["auth.users"].comment).toBe("Auth users");
+      expect(comments.tables["auth.users"].columns.userId?.comment).toBe("user's id");
     });
 
     it("should apply casing from a schema variable created with snakeCase.schema", () => {
@@ -808,8 +808,8 @@ export const users = auth.table("users", {
 
       const comments = extractComments(filePath);
 
-      expect(comments.tables.users.comment).toBe("Auth users");
-      expect(comments.tables.users.columns.user_id?.comment).toBe("user's id");
+      expect(comments.tables["auth.users"].comment).toBe("Auth users");
+      expect(comments.tables["auth.users"].columns.user_id?.comment).toBe("user's id");
     });
 
     it("should apply casing from an inline camelCase.schema(...).table call", () => {
@@ -827,8 +827,8 @@ export const users = camelCase.schema("auth").table("users", {
 
       const comments = extractComments(filePath);
 
-      expect(comments.tables.users.comment).toBe("Auth users");
-      expect(comments.tables.users.columns.userId?.comment).toBe("user's id");
+      expect(comments.tables["auth.users"].comment).toBe("Auth users");
+      expect(comments.tables["auth.users"].columns.userId?.comment).toBe("user's id");
     });
 
     it("should resolve a schema variable declared in another file of a directory", () => {
@@ -860,8 +860,267 @@ export const auth = snakeCase.schema("auth");
 
       const comments = extractComments(schemaDir);
 
-      expect(comments.tables.users.comment).toBe("Auth users");
-      expect(comments.tables.users.columns.user_id?.comment).toBe("user's id");
+      expect(comments.tables["auth.users"].comment).toBe("Auth users");
+      expect(comments.tables["auth.users"].columns.user_id?.comment).toBe("user's id");
+    });
+  });
+
+  describe("Same-named tables in different schemas (#176)", () => {
+    it("should keep default-schema and pgSchema tables with the same name distinct", () => {
+      const schemaCode = `
+import { integer, pgTable, pgSchema } from "drizzle-orm/pg-core";
+
+export const billing = pgSchema("billing");
+
+/** Public users */
+export const users = pgTable("users", {
+  /** public id */
+  id: integer(),
+});
+
+/** Billing users */
+export const billingUsers = billing.table("users", {
+  /** billing id */
+  id: integer(),
+  /** billing user ref */
+  userId: integer("user_id"),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-same-name-schemas.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(Object.keys(comments.tables).sort()).toEqual(["billing.users", "users"]);
+      expect(comments.tables.users.comment).toBe("Public users");
+      expect(comments.tables.users.columns.id?.comment).toBe("public id");
+      expect(comments.tables.users.columns.user_id).toBeUndefined();
+      expect(comments.tables["billing.users"].comment).toBe("Billing users");
+      expect(comments.tables["billing.users"].columns.id?.comment).toBe("billing id");
+      expect(comments.tables["billing.users"].columns.user_id?.comment).toBe("billing user ref");
+    });
+
+    it("should qualify tables defined with inline pgSchema(...).table", () => {
+      const schemaCode = `
+import { integer, pgSchema } from "drizzle-orm/pg-core";
+
+/** Billing users */
+export const billingUsers = pgSchema("billing").table("users", {
+  /** billing id */
+  id: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-inline-pg-schema.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(Object.keys(comments.tables)).toEqual(["billing.users"]);
+      expect(comments.tables["billing.users"].comment).toBe("Billing users");
+      expect(comments.tables["billing.users"].columns.id?.comment).toBe("billing id");
+    });
+
+    it("should qualify mysqlSchema tables and keep them distinct from default tables", () => {
+      const schemaCode = `
+import { int, mysqlTable, mysqlSchema } from "drizzle-orm/mysql-core";
+
+export const analytics = mysqlSchema("analytics");
+
+/** Default users */
+export const users = mysqlTable("users", {
+  /** default id */
+  id: int(),
+});
+
+/** Analytics users */
+export const analyticsUsers = analytics.table("users", {
+  /** analytics id */
+  id: int(),
+});
+
+/** Inline events */
+export const events = mysqlSchema("analytics").table("events", {
+  /** event id */
+  id: int(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-mysql-schema.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(Object.keys(comments.tables).sort()).toEqual([
+        "analytics.events",
+        "analytics.users",
+        "users",
+      ]);
+      expect(comments.tables.users.comment).toBe("Default users");
+      expect(comments.tables["analytics.users"].comment).toBe("Analytics users");
+      expect(comments.tables["analytics.users"].columns.id?.comment).toBe("analytics id");
+      expect(comments.tables["analytics.events"].comment).toBe("Inline events");
+    });
+
+    it("should qualify tables from a casing helper schema variable and keep casing", () => {
+      const schemaCode = `
+import { integer, pgTable, snakeCase } from "drizzle-orm/pg-core";
+
+export const billing = snakeCase.schema("billing");
+
+/** Public users */
+export const users = pgTable("users", {
+  /** public id */
+  id: integer(),
+});
+
+/** Billing users */
+export const billingUsers = billing.table("users", {
+  /** billing user id */
+  billingUserId: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-casing-schema-same-name.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(comments.tables.users.comment).toBe("Public users");
+      expect(comments.tables["billing.users"].comment).toBe("Billing users");
+      expect(comments.tables["billing.users"].columns.billing_user_id?.comment).toBe(
+        "billing user id",
+      );
+    });
+
+    it("should fall back to the bare table name when the schema name is not a string literal", () => {
+      const schemaCode = `
+import { integer, pgSchema } from "drizzle-orm/pg-core";
+
+const schemaName = "billing";
+export const billing = pgSchema(schemaName);
+
+/** Dynamic schema users */
+export const users = billing.table("users", {
+  /** user id */
+  id: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-dynamic-schema-name.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(Object.keys(comments.tables)).toEqual(["users"]);
+      expect(comments.tables.users.comment).toBe("Dynamic schema users");
+      expect(comments.tables.users.columns.id?.comment).toBe("user id");
+    });
+
+    it("should resolve same-named schema variables per file", () => {
+      const dir = join(TEST_DIR, "v1-per-file-schema-variables");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "a-billing.ts"),
+        `
+import { integer, pgSchema } from "drizzle-orm/pg-core";
+
+const schema = pgSchema("billing");
+
+/** Billing users */
+export const billingUsers = schema.table("users", {
+  id: integer(),
+});
+`,
+      );
+      writeFileSync(
+        join(dir, "b-auth.ts"),
+        `
+import { integer, pgSchema } from "drizzle-orm/pg-core";
+
+const schema = pgSchema("auth");
+
+/** Auth users */
+export const authUsers = schema.table("users", {
+  id: integer(),
+});
+`,
+      );
+
+      const comments = extractComments(dir);
+
+      expect(Object.keys(comments.tables).sort()).toEqual(["auth.users", "billing.users"]);
+      expect(comments.tables["billing.users"].comment).toBe("Billing users");
+      expect(comments.tables["auth.users"].comment).toBe("Auth users");
+    });
+
+    it("should resolve a schema variable imported from a relative module", () => {
+      const dir = join(TEST_DIR, "v1-imported-schema-variables");
+      mkdirSync(join(dir, "schemas"), { recursive: true });
+      writeFileSync(
+        join(dir, "schemas", "billing.ts"),
+        `
+import { pgSchema } from "drizzle-orm/pg-core";
+
+export const schema = pgSchema("billing");
+`,
+      );
+      writeFileSync(
+        join(dir, "schemas", "auth.ts"),
+        `
+import { pgSchema } from "drizzle-orm/pg-core";
+
+export const schema = pgSchema("auth");
+`,
+      );
+      writeFileSync(
+        join(dir, "tables.ts"),
+        `
+import { integer } from "drizzle-orm/pg-core";
+import { schema as billing } from "./schemas/billing.js";
+import { schema } from "./schemas/auth";
+
+/** Billing users */
+export const billingUsers = billing.table("users", {
+  id: integer(),
+});
+
+/** Auth users */
+export const authUsers = schema.table("users", {
+  id: integer(),
+});
+`,
+      );
+
+      const comments = extractComments(dir);
+
+      expect(Object.keys(comments.tables).sort()).toEqual(["auth.users", "billing.users"]);
+      expect(comments.tables["billing.users"].comment).toBe("Billing users");
+      expect(comments.tables["auth.users"].comment).toBe("Auth users");
+    });
+
+    it("should recognize an aliased schema helper import", () => {
+      const schemaCode = `
+import { integer, pgSchema as makeSchema } from "drizzle-orm/pg-core";
+
+export const billing = makeSchema("billing");
+
+/** Billing users */
+export const billingUsers = billing.table("users", {
+  /** billing id */
+  id: integer(),
+});
+
+/** Inline billing invoices */
+export const invoices = makeSchema("billing").table("invoices", {
+  id: integer(),
+});
+`;
+      const filePath = join(TEST_DIR, "v1-aliased-schema-helper.ts");
+      writeFileSync(filePath, schemaCode);
+
+      const comments = extractComments(filePath);
+
+      expect(Object.keys(comments.tables).sort()).toEqual(["billing.invoices", "billing.users"]);
+      expect(comments.tables["billing.users"].comment).toBe("Billing users");
+      expect(comments.tables["billing.users"].columns.id?.comment).toBe("billing id");
+      expect(comments.tables["billing.invoices"].comment).toBe("Inline billing invoices");
     });
   });
 

@@ -5,6 +5,7 @@ import type {
   RelationDefinition,
 } from "../types";
 import type { OutputFormatter, FormatterOptions } from "./types";
+import { qualifyTableName } from "../table-name";
 
 /**
  * Options for MermaidErDiagramFormatter
@@ -75,13 +76,14 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
    */
   format(schema: IntermediateSchema): string {
     const lines: string[] = ["erDiagram"];
+    const entityNames = this.buildEntityNames(schema.tables);
 
     // Collect foreign key columns for FK markers
     const fkColumns = this.collectForeignKeyColumns(schema.relations);
 
     // Generate relations first (at the top of the diagram)
     for (const relation of schema.relations) {
-      const relationLine = this.formatRelation(relation, schema.tables);
+      const relationLine = this.formatRelation(relation, schema.tables, entityNames);
       if (relationLine) {
         lines.push(`    ${relationLine}`);
       }
@@ -94,7 +96,7 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
 
     // Generate tables
     for (const table of schema.tables) {
-      const tableLines = this.formatTable(table, fkColumns);
+      const tableLines = this.formatTable(table, fkColumns, entityNames);
       lines.push(...tableLines);
     }
 
@@ -106,38 +108,44 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
    *
    * @param schema - The intermediate schema
    * @param tableName - The name of the table to focus on
+   *   (qualified with its schema for tables in a named schema, e.g. `billing.users`)
    * @returns Mermaid ER diagram string showing only the focused table and its relations
    */
   formatFocused(schema: IntermediateSchema, tableName: string): string {
     // Find the target table
-    const targetTable = schema.tables.find((t) => t.name === tableName);
+    const targetTable = schema.tables.find((t) => qualifyTableName(t.name, t.schema) === tableName);
     if (!targetTable) {
       return "erDiagram";
     }
+    const targetKey = this.getTableKey(targetTable);
 
     // Find related tables through relations
-    const relatedTableNames = new Set<string>([tableName]);
+    const relatedTableKeys = new Set<string>([targetKey]);
     const relevantRelations: RelationDefinition[] = [];
 
     for (const relation of schema.relations) {
-      if (relation.fromTable === tableName || relation.toTable === tableName) {
-        relatedTableNames.add(relation.fromTable);
-        relatedTableNames.add(relation.toTable);
+      const fromTable = this.getRelationFromTable(relation);
+      const toTable = this.getRelationToTable(relation);
+      if (fromTable === targetKey || toTable === targetKey) {
+        relatedTableKeys.add(fromTable);
+        relatedTableKeys.add(toTable);
         relevantRelations.push(relation);
       }
     }
 
     // Filter tables to only include related ones
-    const relevantTables = schema.tables.filter((t) => relatedTableNames.has(t.name));
+    const relevantTables = schema.tables.filter((t) => relatedTableKeys.has(this.getTableKey(t)));
 
     // Collect foreign key columns for FK markers
     const fkColumns = this.collectForeignKeyColumns(relevantRelations);
 
     const lines: string[] = ["erDiagram"];
+    // Built from all tables, so that entity names match those of the full diagram
+    const entityNames = this.buildEntityNames(schema.tables);
 
     // Generate relations
     for (const relation of relevantRelations) {
-      const relationLine = this.formatRelation(relation, relevantTables);
+      const relationLine = this.formatRelation(relation, relevantTables, entityNames);
       if (relationLine) {
         lines.push(`    ${relationLine}`);
       }
@@ -150,7 +158,7 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
 
     // Generate tables
     for (const table of relevantTables) {
-      const tableLines = this.formatTable(table, fkColumns);
+      const tableLines = this.formatTable(table, fkColumns, entityNames);
       lines.push(...tableLines);
     }
 
@@ -158,18 +166,109 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
   }
 
   /**
+   * Build the internal identity key of a table from its schema and table names
+   *
+   * The schema and table names are kept separate (unlike the qualified name), so that
+   * a default-schema table named `billing.users` and a table `users` in schema `billing`
+   * get different keys.
+   */
+  private toTableKey(tableName: string, schema: string | undefined): string {
+    return JSON.stringify([schema ?? null, tableName]);
+  }
+
+  /**
+   * Get the identity key of a table
+   */
+  private getTableKey(table: TableDefinition): string {
+    return this.toTableKey(table.name, table.schema);
+  }
+
+  /**
+   * Get the identity key of the source table of a relation
+   */
+  private getRelationFromTable(relation: RelationDefinition): string {
+    return this.toTableKey(relation.fromTable, relation.fromSchema);
+  }
+
+  /**
+   * Get the identity key of the target table of a relation
+   */
+  private getRelationToTable(relation: RelationDefinition): string {
+    return this.toTableKey(relation.toTable, relation.toSchema);
+  }
+
+  /**
+   * Build Mermaid entity names for tables, keyed by table identity key
+   *
+   * Entity names are the escaped table names (`billing.users` -> `billing_users`).
+   * When escaping makes two tables share an entity name (e.g., `billing_users` and
+   * `billing.users`), a table whose name needs no escaping keeps it, and the others get
+   * a numeric suffix (`billing_users_1`), so that each table stays a distinct entity.
+   */
+  private buildEntityNames(tables: TableDefinition[]): Map<string, string> {
+    const entityNames = new Map<string, string>();
+    const usedNames = new Set<string>();
+    const entries = tables.map((t) => ({
+      tableKey: this.getTableKey(t),
+      qualifiedName: qualifyTableName(t.name, t.schema),
+    }));
+
+    // Names that need no escaping are kept as-is
+    for (const { tableKey, qualifiedName } of entries) {
+      if (this.escapeName(qualifiedName) === qualifiedName && !usedNames.has(qualifiedName)) {
+        entityNames.set(tableKey, qualifiedName);
+        usedNames.add(qualifiedName);
+      }
+    }
+
+    for (const { tableKey, qualifiedName } of entries) {
+      if (entityNames.has(tableKey)) {
+        continue;
+      }
+      const base = this.escapeName(qualifiedName);
+      let name = base;
+      for (let i = 1; usedNames.has(name); i++) {
+        name = `${base}_${i}`;
+      }
+      entityNames.set(tableKey, name);
+      usedNames.add(name);
+    }
+
+    return entityNames;
+  }
+
+  /**
+   * Get the Mermaid entity name of a table
+   *
+   * Falls back to the escaped qualified name for tables that are not in the schema.
+   */
+  private getEntityName(
+    tableName: string,
+    schema: string | undefined,
+    entityNames: Map<string, string>,
+  ): string {
+    return (
+      entityNames.get(this.toTableKey(tableName, schema)) ??
+      this.escapeName(qualifyTableName(tableName, schema))
+    );
+  }
+
+  /**
    * Collect foreign key columns from relations for FK marker assignment
+   *
+   * Keyed by the table identity key.
    */
   private collectForeignKeyColumns(relations: RelationDefinition[]): Map<string, Set<string>> {
     const fkColumns = new Map<string, Set<string>>();
 
     for (const relation of relations) {
       // The "from" side of the relation has the FK column
-      if (!fkColumns.has(relation.fromTable)) {
-        fkColumns.set(relation.fromTable, new Set());
+      const fromTable = this.getRelationFromTable(relation);
+      if (!fkColumns.has(fromTable)) {
+        fkColumns.set(fromTable, new Set());
       }
       for (const col of relation.fromColumns) {
-        fkColumns.get(relation.fromTable)!.add(col);
+        fkColumns.get(fromTable)!.add(col);
       }
     }
 
@@ -183,7 +282,8 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
    */
   private isForeignKeyNullable(relation: RelationDefinition, tables: TableDefinition[]): boolean {
     // Find the table that contains the foreign key columns
-    const fromTable = tables.find((t) => t.name === relation.fromTable);
+    const fromTableName = this.getRelationFromTable(relation);
+    const fromTable = tables.find((t) => this.getTableKey(t) === fromTableName);
     if (!fromTable) {
       return false;
     }
@@ -198,9 +298,14 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
   /**
    * Format a table definition to Mermaid syntax
    */
-  private formatTable(table: TableDefinition, fkColumns: Map<string, Set<string>>): string[] {
+  private formatTable(
+    table: TableDefinition,
+    fkColumns: Map<string, Set<string>>,
+    entityNames: Map<string, string>,
+  ): string[] {
     const lines: string[] = [];
-    const tableName = this.escapeName(table.name);
+    const tableKey = this.getTableKey(table);
+    const tableName = this.getEntityName(table.name, table.schema, entityNames);
 
     // If columns are not included, return table name only (without braces)
     if (!this.options.includeColumns) {
@@ -208,7 +313,7 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
       return lines;
     }
 
-    const tableFkColumns = fkColumns.get(table.name) || new Set();
+    const tableFkColumns = fkColumns.get(tableKey) || new Set();
 
     lines.push(`    ${tableName} {`);
 
@@ -325,9 +430,13 @@ export class MermaidErDiagramFormatter implements OutputFormatter {
    * - }o--o| : many-to-one, but source is optional
    * - }o--o{ : many-to-many
    */
-  private formatRelation(relation: RelationDefinition, tables: TableDefinition[]): string {
-    const fromTable = this.escapeName(relation.fromTable);
-    const toTable = this.escapeName(relation.toTable);
+  private formatRelation(
+    relation: RelationDefinition,
+    tables: TableDefinition[],
+    entityNames: Map<string, string>,
+  ): string {
+    const fromTable = this.getEntityName(relation.fromTable, relation.fromSchema, entityNames);
+    const toTable = this.getEntityName(relation.toTable, relation.toSchema, entityNames);
 
     // Check if the foreign key columns are nullable
     const isForeignKeyNullable = this.isForeignKeyNullable(relation, tables);

@@ -1,7 +1,8 @@
 import * as ts from "@typescript/typescript6";
 import { readFileSync, statSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { isIgnoredDirectory } from "./files";
+import { qualifyTableName } from "../table-name";
 
 /**
  * Comments for a single column
@@ -37,6 +38,11 @@ export interface EnumComment {
  * All extracted comments from a schema file
  */
 export interface SchemaComments {
+  /**
+   * Comments for tables, keyed by table name.
+   * Tables in a named schema (`pgSchema("billing").table("users", ...)`) are keyed by
+   * their qualified name (`billing.users`), so that same-named tables stay distinct.
+   */
   tables: Record<string, TableComment>;
   /**
    * Comments for PostgreSQL enums, keyed by enum name.
@@ -114,27 +120,48 @@ const SCHEMA_HELPERS = ["schema", "pgSchema", "mysqlSchema", "mysqlDatabase"];
  *
  * - `helpers`: local names of helpers imported from `drizzle-orm*` modules
  *   (`import { snakeCase as sc } from "drizzle-orm/pg-core"` -> sc: snake_case)
+ * - `helperNames`: imported names of those helpers, keyed by local name
+ *   (`import { pgSchema as makeSchema } from "drizzle-orm/pg-core"` -> makeSchema: pgSchema)
  * - `namespaces`: namespace imports of `drizzle-orm*` modules
  *   (`import * as pg from "drizzle-orm/pg-core"` -> pg)
+ * - `relativeImports`: named imports from relative modules, keyed by local name
+ *   (`import { billing } from "./schemas"` -> billing: { modulePath, importedName })
  *
  * Kept per file so that the same alias can be bound to different helpers in different files.
  */
 interface FileBindings {
   helpers: Map<string, BindingCasing>;
+  helperNames: Map<string, string>;
   namespaces: Set<string>;
+  relativeImports: Map<string, { modulePath: string; importedName: string }>;
+}
+
+/**
+ * A schema variable (`export const auth = snakeCase.schema("auth")`)
+ *
+ * - `casing`: casing of the helper the schema was created from
+ * - `schemaName`: database schema name ("auth"), undefined when it can't be resolved statically
+ */
+interface SchemaVariable {
+  casing: BindingCasing;
+  schemaName: string | undefined;
 }
 
 /**
  * Bindings visible from the file being parsed
  *
  * - `file`: import bindings of the file
- * - `schemaVariables`: schema variables declared in any parsed file
- *   (`export const auth = snakeCase.schema("auth")`), so that a table file can
- *   import them from another file
+ * - `filePath`: absolute path of the file
+ * - `fileSchemaVariables`: schema variables declared in each parsed file, keyed by absolute path
+ * - `schemaVariables`: schema variables declared in any parsed file, keyed by variable name
+ *   (the last declaration wins). Fallback for imports that can't be resolved to a parsed file
+ *   (e.g., re-exports), so that a table file can import them from another file
  */
 interface CasingScope {
   file: FileBindings;
-  schemaVariables: Map<string, BindingCasing>;
+  filePath: string;
+  fileSchemaVariables: Map<string, Map<string, SchemaVariable>>;
+  schemaVariables: Map<string, SchemaVariable>;
 }
 
 /**
@@ -189,12 +216,23 @@ function getTypeScriptFiles(sourcePath: string): string[] {
 export function extractComments(sourcePath: string): SchemaComments {
   const comments: Required<SchemaComments> = { tables: {}, enums: {} };
   const files = getTypeScriptFiles(sourcePath);
-  const schemaVariables = new Map<string, BindingCasing>();
+  const fileSchemaVariables = new Map<string, Map<string, SchemaVariable>>();
+  const schemaVariables = new Map<string, SchemaVariable>();
 
   const scopes = files.map((filePath): [ts.SourceFile, CasingScope] => {
     const sourceCode = readFileSync(filePath, "utf-8");
     const sourceFile = ts.createSourceFile(filePath, sourceCode, ts.ScriptTarget.Latest, true);
-    return [sourceFile, { file: collectImportBindings(sourceFile), schemaVariables }];
+    const absolutePath = resolve(filePath);
+    fileSchemaVariables.set(absolutePath, new Map());
+    return [
+      sourceFile,
+      {
+        file: collectImportBindings(sourceFile),
+        filePath: absolutePath,
+        fileSchemaVariables,
+        schemaVariables,
+      },
+    ];
   });
 
   // First pass: collect schema variables across all files,
@@ -226,30 +264,103 @@ function isDrizzleModule(moduleSpecifier: ts.Expression): boolean {
  * imported from an unrelated library is not mistaken for the Drizzle helper.
  */
 function collectImportBindings(sourceFile: ts.SourceFile): FileBindings {
-  const bindings: FileBindings = { helpers: new Map(), namespaces: new Set() };
+  const bindings: FileBindings = {
+    helpers: new Map(),
+    helperNames: new Map(),
+    namespaces: new Set(),
+    relativeImports: new Map(),
+  };
 
   for (const statement of sourceFile.statements) {
-    if (!ts.isImportDeclaration(statement) || !isDrizzleModule(statement.moduleSpecifier)) {
+    if (!ts.isImportDeclaration(statement)) {
       continue;
     }
     const namedBindings = statement.importClause?.namedBindings;
     if (!namedBindings) {
       continue;
     }
-    if (ts.isNamespaceImport(namedBindings)) {
-      bindings.namespaces.add(namedBindings.name.text);
-    } else {
+    const moduleSpecifier = statement.moduleSpecifier;
+
+    if (isDrizzleModule(moduleSpecifier)) {
+      if (ts.isNamespaceImport(namedBindings)) {
+        bindings.namespaces.add(namedBindings.name.text);
+      } else {
+        for (const element of namedBindings.elements) {
+          const importedName = element.propertyName?.text ?? element.name.text;
+          const casing = DRIZZLE_HELPER_CASINGS.get(importedName);
+          if (casing) {
+            bindings.helpers.set(element.name.text, casing);
+            bindings.helperNames.set(element.name.text, importedName);
+          }
+        }
+      }
+    } else if (
+      ts.isStringLiteral(moduleSpecifier) &&
+      moduleSpecifier.text.startsWith(".") &&
+      ts.isNamedImports(namedBindings)
+    ) {
+      const modulePath = resolve(dirname(sourceFile.fileName), moduleSpecifier.text);
       for (const element of namedBindings.elements) {
         const importedName = element.propertyName?.text ?? element.name.text;
-        const casing = DRIZZLE_HELPER_CASINGS.get(importedName);
-        if (casing) {
-          bindings.helpers.set(element.name.text, casing);
-        }
+        bindings.relativeImports.set(element.name.text, { modulePath, importedName });
       }
     }
   }
 
   return bindings;
+}
+
+/**
+ * Get the canonical name of the helper a call expression invokes
+ *
+ * Aliased helper imports are resolved to their imported name
+ * (`makeSchema("billing")` with `import { pgSchema as makeSchema }` -> "pgSchema").
+ */
+function getHelperName(callExpr: ts.CallExpression, scope: CasingScope): string | undefined {
+  if (ts.isIdentifier(callExpr.expression)) {
+    return scope.file.helperNames.get(callExpr.expression.text) ?? callExpr.expression.text;
+  }
+  return getCallExpressionName(callExpr);
+}
+
+/**
+ * Candidate file paths of a relative module path (`./schemas` -> `./schemas.ts`, ...)
+ */
+function getModuleFileCandidates(modulePath: string): string[] {
+  const withoutJsExtension = modulePath.replace(/\.(?:js|mjs|cjs)$/, "");
+  return [
+    modulePath,
+    `${withoutJsExtension}.ts`,
+    `${withoutJsExtension}.mts`,
+    `${withoutJsExtension}.cts`,
+    join(modulePath, "index.ts"),
+  ];
+}
+
+/**
+ * Look up a schema variable visible from the file being parsed
+ *
+ * 1. A schema variable declared in the file itself
+ * 2. A schema variable imported from a relative module, resolved to its declaring file
+ * 3. Otherwise, a schema variable of that name declared in any parsed file
+ */
+function lookupSchemaVariable(name: string, scope: CasingScope): SchemaVariable | undefined {
+  const local = scope.fileSchemaVariables.get(scope.filePath)?.get(name);
+  if (local) {
+    return local;
+  }
+
+  const relativeImport = scope.file.relativeImports.get(name);
+  if (relativeImport) {
+    for (const candidate of getModuleFileCandidates(relativeImport.modulePath)) {
+      const imported = scope.fileSchemaVariables.get(candidate)?.get(relativeImport.importedName);
+      if (imported) {
+        return imported;
+      }
+    }
+  }
+
+  return scope.schemaVariables.get(name);
 }
 
 /**
@@ -271,11 +382,16 @@ function collectSchemaVariables(sourceFile: ts.SourceFile, scope: CasingScope): 
         ts.isIdentifier(declaration.name) &&
         initializer &&
         ts.isCallExpression(initializer) &&
-        SCHEMA_HELPERS.includes(getCallExpressionName(initializer) ?? "")
+        SCHEMA_HELPERS.includes(getHelperName(initializer, scope) ?? "")
       ) {
         const casing = resolveCasing(initializer, scope);
         if (casing) {
-          scope.schemaVariables.set(declaration.name.text, casing);
+          const schemaVariable: SchemaVariable = {
+            casing,
+            schemaName: resolveSchemaName(initializer, scope),
+          };
+          scope.fileSchemaVariables.get(scope.filePath)?.set(declaration.name.text, schemaVariable);
+          scope.schemaVariables.set(declaration.name.text, schemaVariable);
         }
       }
     }
@@ -308,7 +424,8 @@ function visitNode(
           scope,
         );
         if (tableInfo) {
-          comments.tables[tableInfo.tableName] = tableInfo.tableComment;
+          comments.tables[qualifyTableName(tableInfo.tableName, tableInfo.schemaName)] =
+            tableInfo.tableComment;
           continue;
         }
 
@@ -332,7 +449,7 @@ function parseTableDefinition(
   sourceFile: ts.SourceFile,
   tableJsDoc: string | undefined,
   scope: CasingScope,
-): { tableName: string; tableComment: TableComment } | undefined {
+): { tableName: string; schemaName: string | undefined; tableComment: TableComment } | undefined {
   // Check if this is a table definition function
   if (!isTableDefinition(callExpr, scope)) {
     return undefined;
@@ -368,6 +485,7 @@ function parseTableDefinition(
 
   return {
     tableName,
+    schemaName: resolveSchemaName(callExpr.expression, scope),
     tableComment: {
       comment: tableJsDoc,
       columns: columnComments,
@@ -487,7 +605,7 @@ function isTableDefinition(callExpr: ts.CallExpression, scope: CasingScope): boo
  */
 function resolveCasing(expr: ts.Expression, scope: CasingScope): BindingCasing | undefined {
   if (ts.isIdentifier(expr)) {
-    return scope.file.helpers.get(expr.text) ?? scope.schemaVariables.get(expr.text);
+    return scope.file.helpers.get(expr.text) ?? lookupSchemaVariable(expr.text, scope)?.casing;
   }
   if (ts.isPropertyAccessExpression(expr)) {
     // Helper accessed through a namespace import (`pg.snakeCase`)
@@ -499,6 +617,36 @@ function resolveCasing(expr: ts.Expression, scope: CasingScope): BindingCasing |
   }
   if (ts.isCallExpression(expr)) {
     return resolveCasing(expr.expression, scope);
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the database schema name from the callee of a table definition
+ *
+ * Walks the receiver chain the same way as `resolveCasing`:
+ * - `pgSchema("auth").table` / `snakeCase.schema("auth").table` -> "auth"
+ * - `authSchema.table` (where `authSchema = pgSchema("auth")`) -> "auth"
+ * - `pgTable`, `snakeCase.table`, `pgTable.withRLS` -> undefined (default schema)
+ *
+ * Only string literal schema names are resolved; anything else yields undefined.
+ */
+function resolveSchemaName(expr: ts.Expression, scope: CasingScope): string | undefined {
+  if (ts.isIdentifier(expr)) {
+    return lookupSchemaVariable(expr.text, scope)?.schemaName;
+  }
+  if (ts.isPropertyAccessExpression(expr)) {
+    return resolveSchemaName(expr.expression, scope);
+  }
+  if (ts.isCallExpression(expr)) {
+    const schemaNameArg = expr.arguments[0];
+    if (
+      SCHEMA_HELPERS.includes(getHelperName(expr, scope) ?? "") &&
+      resolveCasing(expr.expression, scope) !== undefined
+    ) {
+      return schemaNameArg && ts.isStringLiteral(schemaNameArg) ? schemaNameArg.text : undefined;
+    }
+    return resolveSchemaName(expr.expression, scope);
   }
   return undefined;
 }

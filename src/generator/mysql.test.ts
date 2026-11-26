@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mysqlGenerate } from "./mysql";
 import {
   mysqlTable,
+  mysqlSchema,
+  getTableConfig,
   serial,
   text,
   varchar,
@@ -590,5 +592,96 @@ export const users = mysqlTable("users", {
     expect.soft(existsSync(outPath)).toBe(true);
     expect.soft(readFileSync(outPath, "utf-8")).toBe(dbml);
     expect.soft(dbml).toContain('Table "users"');
+  });
+});
+
+describe("mysqlGenerate with mysqlSchema tables (#176)", () => {
+  const SCHEMA_TEST_DIR = join(import.meta.dirname, "__test_fixtures_mysql_schema__");
+
+  beforeAll(() => {
+    mkdirSync(SCHEMA_TEST_DIR, { recursive: true });
+  });
+
+  afterAll(() => {
+    rmSync(SCHEMA_TEST_DIR, { recursive: true, force: true });
+  });
+
+  function createSchema() {
+    const analytics = mysqlSchema("analytics");
+    const users = mysqlTable("users", {
+      id: serial("id").primaryKey(),
+      name: text("name").notNull(),
+    });
+    const analyticsUsers = analytics.table("users", {
+      id: serial("id").primaryKey(),
+      userId: int("user_id")
+        .notNull()
+        .references(() => users.id),
+    });
+    return { users, analyticsUsers };
+  }
+
+  it("should expose the schema through getTableConfig", () => {
+    const { users, analyticsUsers } = createSchema();
+
+    expect(getTableConfig(analyticsUsers).schema).toBe("analytics");
+    expect(getTableConfig(users).schema).toBeUndefined();
+  });
+
+  it("should qualify mysqlSchema tables and their foreign keys with the schema", async () => {
+    const { Parser } = await import("@dbml/core");
+    const { users, analyticsUsers } = createSchema();
+
+    const dbml = mysqlGenerate({ schema: { analyticsUsers, users } });
+
+    expect(dbml).toContain('Table "analytics"."users" {');
+    expect(dbml).toContain('Table "users" {');
+    expect(dbml).toContain('Ref: "analytics"."users"."user_id" > "users"."id"');
+    expect(dbml.match(/^Ref:/gm)).toHaveLength(1);
+    // Same-named tables in different schemas must not collide
+    expect(() => Parser.parse(dbml, "dbmlv2")).not.toThrow();
+  });
+
+  it("should keep JSDoc comments of same-named tables in different schemas distinct", () => {
+    const filePath = join(SCHEMA_TEST_DIR, "schema-comments.ts");
+    writeFileSync(
+      filePath,
+      `
+import { mysqlTable, mysqlSchema, serial, int } from "drizzle-orm/mysql-core";
+
+export const analytics = mysqlSchema("analytics");
+
+/** Default users */
+export const users = mysqlTable("users", {
+  /** default id */
+  id: serial("id").primaryKey(),
+});
+
+/** Analytics users */
+export const analyticsUsers = analytics.table("users", {
+  /** analytics id */
+  id: serial("id").primaryKey(),
+  /** analytics user ref */
+  userId: int("user_id").notNull(),
+});
+`,
+    );
+    const { users, analyticsUsers } = createSchema();
+
+    const dbml = mysqlGenerate({ schema: { users, analyticsUsers }, source: filePath });
+
+    const blockOf = (header: string) => {
+      const start = dbml.indexOf(header);
+      return dbml.slice(start, dbml.indexOf("\n}", start));
+    };
+    const analyticsBlock = blockOf('Table "analytics"."users" {');
+    const defaultBlock = blockOf('Table "users" {');
+    expect(analyticsBlock).toContain("Note: 'Analytics users'");
+    expect(analyticsBlock).toContain("note: 'analytics id'");
+    expect(analyticsBlock).toContain("note: 'analytics user ref'");
+    expect(analyticsBlock).not.toContain("Default users");
+    expect(defaultBlock).toContain("Note: 'Default users'");
+    expect(defaultBlock).toContain("note: 'default id'");
+    expect(defaultBlock).not.toContain("Analytics");
   });
 });

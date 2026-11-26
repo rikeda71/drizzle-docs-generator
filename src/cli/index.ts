@@ -31,6 +31,7 @@ import { register as registerCjs } from "tsx/cjs/api";
 import type { IntermediateSchema } from "../types";
 import { resolveSchemaExports } from "./resolve-schema-exports";
 import { isIgnoredDirectory } from "../parser/files";
+import { qualifyTableName } from "../table-name";
 
 // Register both ESM and CJS tsx loader hooks.
 // ESM hooks handle import() calls, CJS hooks handle require() calls.
@@ -287,6 +288,19 @@ function writeMarkdownMultipleFiles(
   outputDir: string,
   options: GenerateCommandOptions,
 ): void {
+  // Distinct tables must not share a file name
+  // (e.g., a default-schema table "billing.users" and table "users" in schema "billing"),
+  // otherwise one file would silently overwrite the other
+  const tableNames = intermediateSchema.tables.map((t) => qualifyTableName(t.name, t.schema));
+  const duplicateNames = [
+    ...new Set(tableNames.filter((name, i) => tableNames.indexOf(name) !== i)),
+  ];
+  if (duplicateNames.length > 0) {
+    throw new Error(
+      `Multiple tables would be written to the same file:\n${duplicateNames.map((name) => `  - ${name}.md`).join("\n")}`,
+    );
+  }
+
   // Ensure output directory exists
   mkdirSync(outputDir, { recursive: true });
 
@@ -321,10 +335,12 @@ function writeMarkdownMultipleFiles(
   }
 
   // Write individual table files
+  // (tables in a named schema use their qualified name, e.g. billing.users.md)
   for (const table of intermediateSchema.tables) {
     const tableDoc = markdownFormatter.generateTableDoc(table, intermediateSchema);
-    const fileName = `${table.name}.md`;
-    writeFileSync(join(outputDir, fileName), `# ${table.name}\n\n${tableDoc}\n`, "utf-8");
+    const tableName = qualifyTableName(table.name, table.schema);
+    const fileName = `${tableName}.md`;
+    writeFileSync(join(outputDir, fileName), `# ${tableName}\n\n${tableDoc}\n`, "utf-8");
   }
 }
 
@@ -401,7 +417,9 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
         } else {
           // Check for existing files if --force is not specified
           if (!options.force) {
-            const tableNames = intermediateSchema.tables.map((t) => t.name);
+            const tableNames = intermediateSchema.tables.map((t) =>
+              qualifyTableName(t.name, t.schema),
+            );
             const existingFiles = hasExistingFiles(
               options.output,
               tableNames,

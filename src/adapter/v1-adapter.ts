@@ -5,6 +5,18 @@ import type {
   TableRelationalConfig,
 } from "drizzle-orm/relations";
 import type { RelationAdapter, UnifiedRelation } from "./types";
+import { getTableSchema } from "../generator/table-schema";
+import { qualifyTableName } from "../table-name";
+
+/**
+ * Get the qualified name of a table (`billing.users`, or `users` in the default schema)
+ *
+ * Used as the identity of a table, so that same-named tables in different schemas
+ * are not mistaken for one another.
+ */
+function getQualifiedName(table: Table): string {
+  return qualifyTableName(getTableName(table), getTableSchema(table));
+}
 
 /**
  * Extract the database column name from a v1 RelationsBuilderColumnBase
@@ -51,7 +63,8 @@ export class V1RelationAdapter implements RelationAdapter {
     const processedRefs = new Set<string>();
 
     for (const entry of this.entries) {
-      const sourceTableName = getTableName(entry.table as Table);
+      const sourceTable = entry.table as Table;
+      const sourceTableName = getQualifiedName(sourceTable);
 
       for (const relation of Object.values(entry.relations)) {
         // Only process One relations as they define the FK direction
@@ -74,7 +87,8 @@ export class V1RelationAdapter implements RelationAdapter {
           continue;
         }
 
-        const targetTableName = getTableName(rel.targetTable as Table);
+        const targetTable = rel.targetTable as Table;
+        const targetTableName = getQualifiedName(targetTable);
 
         // Create a unique key to avoid duplicate refs
         const refKey = `${sourceTableName}.${sourceColumns.join(",")}->${targetTableName}.${targetColumns.join(",")}`;
@@ -94,9 +108,11 @@ export class V1RelationAdapter implements RelationAdapter {
         );
 
         relations.push({
-          sourceTable: sourceTableName,
+          sourceTable: getTableName(sourceTable),
+          sourceSchema: getTableSchema(sourceTable),
           sourceColumns,
-          targetTable: targetTableName,
+          targetTable: getTableName(targetTable),
+          targetSchema: getTableSchema(targetTable),
           targetColumns,
           relationType: isOneToOne ? "one-to-one" : "many-to-one",
         });
@@ -112,8 +128,8 @@ export class V1RelationAdapter implements RelationAdapter {
    * Detects one-to-one relationships by checking if the target table
    * has a matching One relation pointing back to the source table.
    *
-   * @param fromTableName - The table to search for reverse relation
-   * @param toTableName - The expected target table of the reverse relation
+   * @param fromTableName - The qualified name of the table to search for reverse relation
+   * @param toTableName - The expected qualified target table of the reverse relation
    * @param fromColumns - The expected source columns of the reverse relation
    * @param toColumns - The expected target columns of the reverse relation
    * @returns True if a matching reverse One relation exists
@@ -124,7 +140,9 @@ export class V1RelationAdapter implements RelationAdapter {
     fromColumns: string[],
     toColumns: string[],
   ): boolean {
-    const fromEntry = this.entries.find((e) => getTableName(e.table as Table) === fromTableName);
+    const fromEntry = this.entries.find(
+      (e) => getQualifiedName(e.table as Table) === fromTableName,
+    );
     if (!fromEntry) {
       return false;
     }
@@ -135,7 +153,7 @@ export class V1RelationAdapter implements RelationAdapter {
       }
 
       const rel = relation as AnyRelation;
-      const relTargetName = getTableName(rel.targetTable as Table);
+      const relTargetName = getQualifiedName(rel.targetTable as Table);
       if (relTargetName !== toTableName) {
         continue;
       }

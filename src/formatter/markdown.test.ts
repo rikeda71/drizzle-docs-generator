@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { MarkdownFormatter } from "./markdown";
 import type { IntermediateSchema } from "../types";
 
@@ -1241,5 +1241,247 @@ describe("MarkdownFormatter", () => {
       expect(markdown).toContain("[user_accounts](#user_accounts)");
       expect(markdown).toContain("[post_tags](#post_tags)");
     });
+  });
+});
+
+const col = (name: string, type: string, primaryKey = false) => ({
+  name,
+  type,
+  nullable: false,
+  primaryKey,
+  unique: false,
+});
+
+/** default-schema `users` and `billing.users`, with billing.users.user_id -> users.id */
+function buildSchemaQualifiedSchema(referencedSchema?: string): IntermediateSchema {
+  return {
+    databaseType: "postgresql",
+    tables: [
+      {
+        name: "users",
+        columns: [col("id", "serial", true), col("name", "text")],
+        indexes: [],
+        constraints: [],
+      },
+      {
+        name: "users",
+        schema: "billing",
+        columns: [col("id", "serial", true), col("user_id", "integer")],
+        indexes: [],
+        constraints: [
+          {
+            name: "users_user_id_fk",
+            type: "foreign_key",
+            columns: ["user_id"],
+            referencedTable: "users",
+            referencedSchema,
+            referencedColumns: ["id"],
+          },
+        ],
+      },
+    ],
+    relations: [
+      {
+        fromTable: "users",
+        fromSchema: "billing",
+        fromColumns: ["user_id"],
+        toTable: "users",
+        toSchema: referencedSchema,
+        toColumns: ["id"],
+        type: "many-to-one",
+      },
+    ],
+    enums: [],
+  };
+}
+
+describe("schema-qualified tables (#176)", () => {
+  it("should list and document both tables with qualified names", () => {
+    const md = new MarkdownFormatter().format(buildSchemaQualifiedSchema());
+
+    expect(md).toContain("| [users](#users) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers) | 2 |");
+    expect(md).toMatch(/^## users$/m);
+    expect(md).toMatch(/^## billing\.users$/m);
+  });
+
+  it("should use file links with qualified names in file mode", () => {
+    const md = new MarkdownFormatter({ linkFormat: "file" }).format(buildSchemaQualifiedSchema());
+
+    expect(md).toContain("| [users](./users.md) | 2 |");
+    expect(md).toContain("| [billing.users](./billing.users.md) | 2 |");
+    expect(md).toContain("[billing.users.user_id](./billing.users.md)");
+    expect(md).toContain("[users.id](./users.md)");
+  });
+
+  it("should not render links when useRelativeLinks is false", () => {
+    const md = new MarkdownFormatter({ useRelativeLinks: false }).format(
+      buildSchemaQualifiedSchema(),
+    );
+
+    expect(md).toContain("| billing.users | 2 |");
+    expect(md).not.toContain("](#billingusers)");
+  });
+
+  it("should mark the correct current table in the relations table", () => {
+    const schema = buildSchemaQualifiedSchema();
+    const formatter = new MarkdownFormatter();
+    const billingDoc = formatter.generateTableDoc(schema.tables[1], schema);
+    const usersDoc = formatter.generateTableDoc(schema.tables[0], schema);
+
+    // billing.users is the child: the child cell is bold
+    expect(billingDoc).toContain(
+      "| [users.id](#users) | **[billing.users.user_id](#billingusers)** |",
+    );
+    // default users is the parent: the parent cell is bold
+    expect(usersDoc).toContain(
+      "| **[users.id](#users)** | [billing.users.user_id](#billingusers) |",
+    );
+  });
+
+  it("should attach column relations to the correct table", () => {
+    const schema = buildSchemaQualifiedSchema();
+    const formatter = new MarkdownFormatter();
+    const billingDoc = formatter.generateTableDoc(schema.tables[1], schema);
+    const usersDoc = formatter.generateTableDoc(schema.tables[0], schema);
+
+    // billing.users.user_id has the default users.id as a parent
+    expect(billingDoc).toMatch(/\| user_id \|.*\| \[users\.id\]\(#users\) \|/);
+    // billing.users.id is not referenced by anything
+    expect(billingDoc).toMatch(/\| \*\*id\*\* \|[^\n]*\| - \| - \|/);
+    // default users.id has billing.users.user_id as a child
+    expect(usersDoc).toMatch(
+      /\| \*\*id\*\* \|[^\n]*\| \[billing\.users\.user_id\]\(#billingusers\) \| - \|/,
+    );
+  });
+
+  it("should display FK constraints with the referenced table qualified", () => {
+    const formatter = new MarkdownFormatter();
+    const def = buildSchemaQualifiedSchema();
+    expect(formatter.generateTableDoc(def.tables[1], def)).toContain("(user_id) → users(id)");
+
+    const inSchema = buildSchemaQualifiedSchema("accounts");
+    inSchema.tables[0].schema = "accounts";
+    const doc = formatter.generateTableDoc(inSchema.tables[1], inSchema);
+    expect(doc).toContain("(user_id) → accounts.users(id)");
+    expect(doc).toContain("[accounts.users.id](#accountsusers)");
+  });
+
+  it("should suffix anchors that collide after removing dots, like GitHub heading IDs", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // default-schema "billingusers" and "billing.users" both slug to "billingusers"
+    schema.tables[0].name = "billingusers";
+    schema.relations[0].toTable = "billingusers";
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [billingusers](#billingusers) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers-1) | 2 |");
+    expect(md).toContain("[billing.users.user_id](#billingusers-1)");
+    expect(md).toContain("[billingusers.id](#billingusers)");
+  });
+
+  it("should count enum headings that precede the table headings", () => {
+    const schema = buildSchemaQualifiedSchema();
+    schema.tables[0].name = "billingusers";
+    schema.relations[0].toTable = "billingusers";
+    // The enum heading "## billingusers" comes before both table headings
+    schema.enums = [{ name: "billingusers", values: ["a"] }];
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [billingusers](#billingusers-1) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers-2) | 2 |");
+    expect(md).toContain("[billing.users.user_id](#billingusers-2)");
+    expect(md).toContain("[billingusers.id](#billingusers-1)");
+  });
+
+  it("should link to the lowercase GitHub heading IDs when names differ only in case", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // "BillingUsers" and "billing.users" both get the heading ID "billingusers"
+    schema.tables[0].name = "BillingUsers";
+    schema.relations[0].toTable = "BillingUsers";
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [BillingUsers](#billingusers) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers-1) | 2 |");
+    expect(md).toContain("[BillingUsers.id](#billingusers)");
+    expect(md).toContain("[billing.users.user_id](#billingusers-1)");
+  });
+
+  it("should keep the current anchor of a non-colliding table with uppercase letters", () => {
+    const schema = buildSchemaQualifiedSchema();
+    schema.tables[0].name = "Users";
+    schema.relations[0].toTable = "Users";
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [Users](#Users) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers) | 2 |");
+  });
+
+  it("should count section headings of preceding tables", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // "### Columns" of the preceding users table already uses the "columns" heading ID
+    schema.tables[1].name = "columns";
+    schema.tables[1].schema = undefined;
+    schema.relations[0].fromTable = "columns";
+    schema.relations[0].fromSchema = undefined;
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [users](#users) | 2 |");
+    expect(md).toContain("| [columns](#columns-1) | 2 |");
+    expect(md).toContain("[columns.user_id](#columns-1)");
+  });
+
+  it("should keep a dotted default-schema table distinct from the same name in a schema", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // default-schema "billing.users" and "users" in schema "billing" share a qualified name
+    schema.tables[0].name = "billing.users";
+    schema.relations[0].toTable = "billing.users";
+    const formatter = new MarkdownFormatter();
+    const md = formatter.format(schema);
+
+    // Each index link targets its own heading
+    expect(md).toContain("| [billing.users](#billingusers) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers-1) | 2 |");
+
+    // The default-schema table is the parent; the table in schema "billing" is the child
+    const parentDoc = formatter.generateTableDoc(schema.tables[0], schema);
+    const childDoc = formatter.generateTableDoc(schema.tables[1], schema);
+    expect(parentDoc).toContain(
+      "| **[billing.users.id](#billingusers)** | [billing.users.user_id](#billingusers-1) |",
+    );
+    expect(childDoc).toContain(
+      "| [billing.users.id](#billingusers) | **[billing.users.user_id](#billingusers-1)** |",
+    );
+    // Column relations are attached to the correct table only
+    expect(parentDoc).toMatch(
+      /\| \*\*id\*\* \|[^\n]*\| \[billing\.users\.user_id\]\(#billingusers-1\) \| - \|/,
+    );
+    expect(childDoc).toMatch(/\| \*\*id\*\* \|[^\n]*\| - \| - \|/);
+  });
+
+  it("should compute the heading anchors once per render", () => {
+    const schema = buildSchemaQualifiedSchema();
+    const formatter = new MarkdownFormatter();
+    const spy = vi.spyOn(
+      formatter as unknown as { getTableAnchors: (s: IntermediateSchema) => Map<string, string> },
+      "getTableAnchors",
+    );
+
+    formatter.format(schema);
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    spy.mockClear();
+    formatter.generateTableDoc(schema.tables[1], schema);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("should reflect schema changes between renders", () => {
+    const schema = buildSchemaQualifiedSchema();
+    const formatter = new MarkdownFormatter();
+    expect(formatter.format(schema)).toContain("| [billing.users](#billingusers) | 2 |");
+
+    schema.tables[0].name = "billingusers";
+    schema.relations[0].toTable = "billingusers";
+    expect(formatter.format(schema)).toContain("| [billing.users](#billingusers-1) | 2 |");
   });
 });

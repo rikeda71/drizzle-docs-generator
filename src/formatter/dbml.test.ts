@@ -913,3 +913,86 @@ describe("DbmlFormatter", () => {
     });
   });
 });
+
+const col = (name: string, type: string, primaryKey = false) => ({
+  name,
+  type,
+  nullable: false,
+  primaryKey,
+  unique: false,
+});
+
+/** default-schema `users` and `billing.users`, with billing.users.user_id -> users.id */
+function buildSchemaQualifiedSchema(referencedSchema?: string): IntermediateSchema {
+  return {
+    databaseType: "postgresql",
+    tables: [
+      {
+        name: "users",
+        columns: [col("id", "serial", true), col("name", "text")],
+        indexes: [],
+        constraints: [],
+      },
+      {
+        name: "users",
+        schema: "billing",
+        columns: [col("id", "serial", true), col("user_id", "integer")],
+        indexes: [],
+        constraints: [
+          {
+            name: "users_user_id_fk",
+            type: "foreign_key",
+            columns: ["user_id"],
+            referencedTable: "users",
+            referencedSchema,
+            referencedColumns: ["id"],
+          },
+        ],
+      },
+    ],
+    relations: [
+      {
+        fromTable: "users",
+        fromSchema: "billing",
+        fromColumns: ["user_id"],
+        toTable: "users",
+        toSchema: referencedSchema,
+        toColumns: ["id"],
+        type: "many-to-one",
+      },
+    ],
+    enums: [],
+  };
+}
+
+describe("schema-qualified tables (#176)", () => {
+  it("should render same-named tables in different schemas distinctly", () => {
+    const dbml = new DbmlFormatter().format(buildSchemaQualifiedSchema());
+
+    expect(dbml).toContain('Table "users" {');
+    expect(dbml).toContain('Table "billing"."users" {');
+    expect(dbml).toContain('Ref: "billing"."users"."user_id" > "users"."id"');
+    expect(() => new Parser().parse(dbml, "dbml")).not.toThrow();
+  });
+
+  it("should qualify the referenced side when it is in a schema", () => {
+    const schema = buildSchemaQualifiedSchema("accounts");
+    schema.tables[0].schema = "accounts";
+    const dbml = new DbmlFormatter().format(schema);
+
+    expect(dbml).toContain('Table "accounts"."users" {');
+    expect(dbml).toContain('Table "billing"."users" {');
+    expect(dbml).toContain('Ref: "billing"."users"."user_id" > "accounts"."users"."id"');
+    expect(() => new Parser().parse(dbml, "dbml")).not.toThrow();
+  });
+
+  it("should keep default-schema-only output unqualified", () => {
+    const schema = buildSchemaQualifiedSchema();
+    schema.tables = [schema.tables[0]];
+    schema.relations = [];
+    const dbml = new DbmlFormatter().format(schema);
+
+    expect(dbml).toContain('Table "users" {');
+    expect(dbml).not.toContain('"billing"');
+  });
+});

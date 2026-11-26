@@ -7,10 +7,14 @@
 export interface UnifiedRelation {
   /** Source table name (database name, not TypeScript variable) */
   sourceTable: string;
+  /** Source table schema (undefined for the default schema) */
+  sourceSchema?: string;
   /** Source column names (database names) */
   sourceColumns: string[];
   /** Target table name (database name) */
   targetTable: string;
+  /** Target table schema (undefined for the default schema) */
+  targetSchema?: string;
   /** Target column names (database names) */
   targetColumns: string[];
   /** Type of relation */
