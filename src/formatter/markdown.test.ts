@@ -1394,6 +1394,29 @@ describe("schema-qualified tables (#176)", () => {
     expect(md).toContain("[billingusers.id](#billingusers-1)");
   });
 
+  it("should link to the lowercase GitHub heading IDs when names differ only in case", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // "BillingUsers" and "billing.users" both get the heading ID "billingusers"
+    schema.tables[0].name = "BillingUsers";
+    schema.relations[0].toTable = "BillingUsers";
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [BillingUsers](#billingusers) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers-1) | 2 |");
+    expect(md).toContain("[BillingUsers.id](#billingusers)");
+    expect(md).toContain("[billing.users.user_id](#billingusers-1)");
+  });
+
+  it("should keep the current anchor of a non-colliding table with uppercase letters", () => {
+    const schema = buildSchemaQualifiedSchema();
+    schema.tables[0].name = "Users";
+    schema.relations[0].toTable = "Users";
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [Users](#Users) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers) | 2 |");
+  });
+
   it("should count section headings of preceding tables", () => {
     const schema = buildSchemaQualifiedSchema();
     // "### Columns" of the preceding users table already uses the "columns" heading ID
