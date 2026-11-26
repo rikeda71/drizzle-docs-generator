@@ -1366,4 +1366,17 @@ describe("schema-qualified tables (#176)", () => {
     expect(doc).toContain("(user_id) → accounts.users(id)");
     expect(doc).toContain("[accounts.users.id](#accountsusers)");
   });
+
+  it("should suffix anchors that collide after removing dots, like GitHub heading IDs", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // default-schema "billingusers" and "billing.users" both slug to "billingusers"
+    schema.tables[0].name = "billingusers";
+    schema.relations[0].toTable = "billingusers";
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [billingusers](#billingusers) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers-1) | 2 |");
+    expect(md).toContain("[billing.users.user_id](#billingusers-1)");
+    expect(md).toContain("[billingusers.id](#billingusers)");
+  });
 });

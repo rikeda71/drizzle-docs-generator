@@ -1675,4 +1675,23 @@ describe("schema-qualified tables (#176)", () => {
     const out = new MermaidErDiagramFormatter().formatFocused(schema, "users");
     expect(out).toBe("erDiagram");
   });
+
+  it("should keep entity names distinct when escaping makes them collide", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // default-schema "billing_users" and "billing.users" both escape to "billing_users"
+    schema.tables[0].name = "billing_users";
+    schema.relations[0].toTable = "billing_users";
+    const formatter = new MermaidErDiagramFormatter();
+
+    const out = formatter.format(schema);
+    expect(out).toContain("    billing_users {");
+    expect(out).toContain("    billing_users_1 {");
+    expect(out).toContain("billing_users_1 }o--|| billing_users");
+
+    // Focused diagrams use the same entity names as the full diagram
+    const focused = formatter.formatFocused(schema, "billing.users");
+    expect(focused).toContain("    billing_users {");
+    expect(focused).toContain("    billing_users_1 {");
+    expect(focused).toContain("billing_users_1 }o--|| billing_users");
+  });
 });

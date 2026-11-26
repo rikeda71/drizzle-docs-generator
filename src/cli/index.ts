@@ -288,6 +288,19 @@ function writeMarkdownMultipleFiles(
   outputDir: string,
   options: GenerateCommandOptions,
 ): void {
+  // Distinct tables must not share a file name
+  // (e.g., a default-schema table "billing.users" and table "users" in schema "billing"),
+  // otherwise one file would silently overwrite the other
+  const tableNames = intermediateSchema.tables.map((t) => qualifyTableName(t.name, t.schema));
+  const duplicateNames = [
+    ...new Set(tableNames.filter((name, i) => tableNames.indexOf(name) !== i)),
+  ];
+  if (duplicateNames.length > 0) {
+    throw new Error(
+      `Multiple tables would be written to the same file:\n${duplicateNames.map((name) => `  - ${name}.md`).join("\n")}`,
+    );
+  }
+
   // Ensure output directory exists
   mkdirSync(outputDir, { recursive: true });
 

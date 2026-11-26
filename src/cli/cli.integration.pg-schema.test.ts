@@ -95,4 +95,39 @@ describe("Tables in a named schema (pgSchema)", () => {
     expect(result.stdout).toContain("[billing.users](#billingusers)");
     expect(result.stdout).toContain("billing_users {");
   });
+
+  it("should fail instead of overwriting when two tables map to the same Markdown file", async () => {
+    const fixtureDir = join(TEST_OUTPUT_DIR, "pg-schema-duplicate-file-fixture");
+    const schemaPath = join(fixtureDir, "schema.ts");
+    const outputDir = join(TEST_OUTPUT_DIR, "pg-schema-duplicate-file-output");
+    mkdirSync(fixtureDir, { recursive: true });
+    writeFileSync(
+      schemaPath,
+      `import { pgSchema, pgTable, serial } from "drizzle-orm/pg-core";
+
+export const billing = pgSchema("billing");
+
+export const dottedUsers = pgTable("billing.users", {
+  id: serial("id").primaryKey(),
+});
+
+export const billingUsers = billing.table("users", {
+  id: serial("id").primaryKey(),
+});
+`,
+    );
+
+    const result = await runGenerate(schemaPath, "postgresql", {
+      format: "markdown",
+      output: outputDir,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Multiple tables would be written to the same file");
+    expect(result.stderr).toContain("billing.users.md");
+    expect(existsSync(join(outputDir, "billing.users.md"))).toBe(false);
+
+    rmSync(outputDir, { recursive: true, force: true });
+    rmSync(fixtureDir, { recursive: true, force: true });
+  });
 });
