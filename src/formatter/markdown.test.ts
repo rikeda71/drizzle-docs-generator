@@ -1243,3 +1243,127 @@ describe("MarkdownFormatter", () => {
     });
   });
 });
+
+const col = (name: string, type: string, primaryKey = false) => ({
+  name,
+  type,
+  nullable: false,
+  primaryKey,
+  unique: false,
+});
+
+/** default-schema `users` and `billing.users`, with billing.users.user_id -> users.id */
+function buildSchemaQualifiedSchema(referencedSchema?: string): IntermediateSchema {
+  return {
+    databaseType: "postgresql",
+    tables: [
+      {
+        name: "users",
+        columns: [col("id", "serial", true), col("name", "text")],
+        indexes: [],
+        constraints: [],
+      },
+      {
+        name: "users",
+        schema: "billing",
+        columns: [col("id", "serial", true), col("user_id", "integer")],
+        indexes: [],
+        constraints: [
+          {
+            name: "users_user_id_fk",
+            type: "foreign_key",
+            columns: ["user_id"],
+            referencedTable: "users",
+            referencedSchema,
+            referencedColumns: ["id"],
+          },
+        ],
+      },
+    ],
+    relations: [
+      {
+        fromTable: "users",
+        fromSchema: "billing",
+        fromColumns: ["user_id"],
+        toTable: "users",
+        toSchema: referencedSchema,
+        toColumns: ["id"],
+        type: "many-to-one",
+      },
+    ],
+    enums: [],
+  };
+}
+
+describe("schema-qualified tables (#176)", () => {
+  it("should list and document both tables with qualified names", () => {
+    const md = new MarkdownFormatter().format(buildSchemaQualifiedSchema());
+
+    expect(md).toContain("| [users](#users) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers) | 2 |");
+    expect(md).toMatch(/^## users$/m);
+    expect(md).toMatch(/^## billing\.users$/m);
+  });
+
+  it("should use file links with qualified names in file mode", () => {
+    const md = new MarkdownFormatter({ linkFormat: "file" }).format(buildSchemaQualifiedSchema());
+
+    expect(md).toContain("| [users](./users.md) | 2 |");
+    expect(md).toContain("| [billing.users](./billing.users.md) | 2 |");
+    expect(md).toContain("[billing.users.user_id](./billing.users.md)");
+    expect(md).toContain("[users.id](./users.md)");
+  });
+
+  it("should not render links when useRelativeLinks is false", () => {
+    const md = new MarkdownFormatter({ useRelativeLinks: false }).format(
+      buildSchemaQualifiedSchema(),
+    );
+
+    expect(md).toContain("| billing.users | 2 |");
+    expect(md).not.toContain("](#billingusers)");
+  });
+
+  it("should mark the correct current table in the relations table", () => {
+    const schema = buildSchemaQualifiedSchema();
+    const formatter = new MarkdownFormatter();
+    const billingDoc = formatter.generateTableDoc(schema.tables[1], schema);
+    const usersDoc = formatter.generateTableDoc(schema.tables[0], schema);
+
+    // billing.users is the child: the child cell is bold
+    expect(billingDoc).toContain(
+      "| [users.id](#users) | **[billing.users.user_id](#billingusers)** |",
+    );
+    // default users is the parent: the parent cell is bold
+    expect(usersDoc).toContain(
+      "| **[users.id](#users)** | [billing.users.user_id](#billingusers) |",
+    );
+  });
+
+  it("should attach column relations to the correct table", () => {
+    const schema = buildSchemaQualifiedSchema();
+    const formatter = new MarkdownFormatter();
+    const billingDoc = formatter.generateTableDoc(schema.tables[1], schema);
+    const usersDoc = formatter.generateTableDoc(schema.tables[0], schema);
+
+    // billing.users.user_id has the default users.id as a parent
+    expect(billingDoc).toMatch(/\| user_id \|.*\| \[users\.id\]\(#users\) \|/);
+    // billing.users.id is not referenced by anything
+    expect(billingDoc).toMatch(/\| \*\*id\*\* \|[^\n]*\| - \| - \|/);
+    // default users.id has billing.users.user_id as a child
+    expect(usersDoc).toMatch(
+      /\| \*\*id\*\* \|[^\n]*\| \[billing\.users\.user_id\]\(#billingusers\) \| - \|/,
+    );
+  });
+
+  it("should display FK constraints with the referenced table qualified", () => {
+    const formatter = new MarkdownFormatter();
+    const def = buildSchemaQualifiedSchema();
+    expect(formatter.generateTableDoc(def.tables[1], def)).toContain("(user_id) → users(id)");
+
+    const inSchema = buildSchemaQualifiedSchema("accounts");
+    inSchema.tables[0].schema = "accounts";
+    const doc = formatter.generateTableDoc(inSchema.tables[1], inSchema);
+    expect(doc).toContain("(user_id) → accounts.users(id)");
+    expect(doc).toContain("[accounts.users.id](#accountsusers)");
+  });
+});

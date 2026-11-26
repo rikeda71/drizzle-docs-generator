@@ -31,6 +31,7 @@ import { register as registerCjs } from "tsx/cjs/api";
 import type { IntermediateSchema } from "../types";
 import { resolveSchemaExports } from "./resolve-schema-exports";
 import { isIgnoredDirectory } from "../parser/files";
+import { qualifyTableName } from "../table-name";
 
 // Register both ESM and CJS tsx loader hooks.
 // ESM hooks handle import() calls, CJS hooks handle require() calls.
@@ -321,10 +322,12 @@ function writeMarkdownMultipleFiles(
   }
 
   // Write individual table files
+  // (tables in a named schema use their qualified name, e.g. billing.users.md)
   for (const table of intermediateSchema.tables) {
     const tableDoc = markdownFormatter.generateTableDoc(table, intermediateSchema);
-    const fileName = `${table.name}.md`;
-    writeFileSync(join(outputDir, fileName), `# ${table.name}\n\n${tableDoc}\n`, "utf-8");
+    const tableName = qualifyTableName(table.name, table.schema);
+    const fileName = `${tableName}.md`;
+    writeFileSync(join(outputDir, fileName), `# ${tableName}\n\n${tableDoc}\n`, "utf-8");
   }
 }
 
@@ -401,7 +404,9 @@ async function runGenerate(schema: string, options: GenerateCommandOptions): Pro
         } else {
           // Check for existing files if --force is not specified
           if (!options.force) {
-            const tableNames = intermediateSchema.tables.map((t) => t.name);
+            const tableNames = intermediateSchema.tables.map((t) =>
+              qualifyTableName(t.name, t.schema),
+            );
             const existingFiles = hasExistingFiles(
               options.output,
               tableNames,

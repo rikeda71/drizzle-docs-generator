@@ -4,6 +4,16 @@ import { MySqlTable } from "drizzle-orm/mysql-core";
 import { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { SchemaRelations } from "../parser/relations";
 import type { RelationAdapter, UnifiedRelation } from "./types";
+import { getTableSchema } from "../generator/table-schema";
+import { qualifyTableName } from "../table-name";
+
+/**
+ * Database name and schema of a table
+ */
+interface TableIdentity {
+  name: string;
+  schema: string | undefined;
+}
 
 /**
  * Adapter for extracting relations from v0 relations() API
@@ -14,7 +24,7 @@ import type { RelationAdapter, UnifiedRelation } from "./types";
 export class V0RelationAdapter implements RelationAdapter {
   private schema: Record<string, unknown>;
   private parsedRelations: SchemaRelations | undefined;
-  private tableNameMapping: Map<string, string>;
+  private tableNameMapping: Map<string, TableIdentity>;
   private columnNameMappings: Map<string, Map<string, string>>;
 
   /**
@@ -59,12 +69,14 @@ export class V0RelationAdapter implements RelationAdapter {
       }
 
       // Map variable names to actual table names
-      const fromTableName = this.tableNameMapping.get(parsedRelation.sourceTable);
-      const toTableName = this.tableNameMapping.get(parsedRelation.targetTable);
+      const fromTable = this.tableNameMapping.get(parsedRelation.sourceTable);
+      const toTable = this.tableNameMapping.get(parsedRelation.targetTable);
 
-      if (!fromTableName || !toTableName) {
+      if (!fromTable || !toTable) {
         continue;
       }
+      const fromTableName = qualifyTableName(fromTable.name, fromTable.schema);
+      const toTableName = qualifyTableName(toTable.name, toTable.schema);
 
       // Get column name mappings (TypeScript property names -> database column names)
       const fromColumnMapping = this.getColumnNameMapping(parsedRelation.sourceTable);
@@ -95,9 +107,11 @@ export class V0RelationAdapter implements RelationAdapter {
 
       // Create UnifiedRelation
       relations.push({
-        sourceTable: fromTableName,
+        sourceTable: fromTable.name,
+        sourceSchema: fromTable.schema,
         sourceColumns: fromColumns,
-        targetTable: toTableName,
+        targetTable: toTable.name,
+        targetSchema: toTable.schema,
         targetColumns: toColumns,
         relationType: isOneToOne ? "one-to-one" : "many-to-one",
       });
@@ -107,16 +121,16 @@ export class V0RelationAdapter implements RelationAdapter {
   }
 
   /**
-   * Build a mapping from variable names to table names
+   * Build a mapping from variable names to table names and schemas
    *
-   * @returns Map of variable names to database table names
+   * @returns Map of variable names to database table names and schemas
    */
-  private buildTableNameMapping(): Map<string, string> {
-    const mapping = new Map<string, string>();
+  private buildTableNameMapping(): Map<string, TableIdentity> {
+    const mapping = new Map<string, TableIdentity>();
     for (const [varName, value] of Object.entries(this.schema)) {
       if (this.isTable(value)) {
-        const tableName = getTableName(value as Table);
-        mapping.set(varName, tableName);
+        const table = value as Table;
+        mapping.set(varName, { name: getTableName(table), schema: getTableSchema(table) });
       }
     }
     return mapping;

@@ -2,6 +2,7 @@ import * as ts from "@typescript/typescript6";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { isIgnoredDirectory } from "./files";
+import { qualifyTableName } from "../table-name";
 
 /**
  * Comments for a single column
@@ -37,6 +38,11 @@ export interface EnumComment {
  * All extracted comments from a schema file
  */
 export interface SchemaComments {
+  /**
+   * Comments for tables, keyed by table name.
+   * Tables in a named schema (`pgSchema("billing").table("users", ...)`) are keyed by
+   * their qualified name (`billing.users`), so that same-named tables stay distinct.
+   */
   tables: Record<string, TableComment>;
   /**
    * Comments for PostgreSQL enums, keyed by enum name.
@@ -131,10 +137,12 @@ interface FileBindings {
  * - `schemaVariables`: schema variables declared in any parsed file
  *   (`export const auth = snakeCase.schema("auth")`), so that a table file can
  *   import them from another file
+ * - `schemaNames`: database schema names of those schema variables (auth -> "auth")
  */
 interface CasingScope {
   file: FileBindings;
   schemaVariables: Map<string, BindingCasing>;
+  schemaNames: Map<string, string>;
 }
 
 /**
@@ -190,11 +198,12 @@ export function extractComments(sourcePath: string): SchemaComments {
   const comments: Required<SchemaComments> = { tables: {}, enums: {} };
   const files = getTypeScriptFiles(sourcePath);
   const schemaVariables = new Map<string, BindingCasing>();
+  const schemaNames = new Map<string, string>();
 
   const scopes = files.map((filePath): [ts.SourceFile, CasingScope] => {
     const sourceCode = readFileSync(filePath, "utf-8");
     const sourceFile = ts.createSourceFile(filePath, sourceCode, ts.ScriptTarget.Latest, true);
-    return [sourceFile, { file: collectImportBindings(sourceFile), schemaVariables }];
+    return [sourceFile, { file: collectImportBindings(sourceFile), schemaVariables, schemaNames }];
   });
 
   // First pass: collect schema variables across all files,
@@ -276,6 +285,10 @@ function collectSchemaVariables(sourceFile: ts.SourceFile, scope: CasingScope): 
         const casing = resolveCasing(initializer, scope);
         if (casing) {
           scope.schemaVariables.set(declaration.name.text, casing);
+          const schemaName = resolveSchemaName(initializer, scope);
+          if (schemaName) {
+            scope.schemaNames.set(declaration.name.text, schemaName);
+          }
         }
       }
     }
@@ -308,7 +321,8 @@ function visitNode(
           scope,
         );
         if (tableInfo) {
-          comments.tables[tableInfo.tableName] = tableInfo.tableComment;
+          comments.tables[qualifyTableName(tableInfo.tableName, tableInfo.schemaName)] =
+            tableInfo.tableComment;
           continue;
         }
 
@@ -332,7 +346,7 @@ function parseTableDefinition(
   sourceFile: ts.SourceFile,
   tableJsDoc: string | undefined,
   scope: CasingScope,
-): { tableName: string; tableComment: TableComment } | undefined {
+): { tableName: string; schemaName: string | undefined; tableComment: TableComment } | undefined {
   // Check if this is a table definition function
   if (!isTableDefinition(callExpr, scope)) {
     return undefined;
@@ -368,6 +382,7 @@ function parseTableDefinition(
 
   return {
     tableName,
+    schemaName: resolveSchemaName(callExpr.expression, scope),
     tableComment: {
       comment: tableJsDoc,
       columns: columnComments,
@@ -499,6 +514,36 @@ function resolveCasing(expr: ts.Expression, scope: CasingScope): BindingCasing |
   }
   if (ts.isCallExpression(expr)) {
     return resolveCasing(expr.expression, scope);
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the database schema name from the callee of a table definition
+ *
+ * Walks the receiver chain the same way as `resolveCasing`:
+ * - `pgSchema("auth").table` / `snakeCase.schema("auth").table` -> "auth"
+ * - `authSchema.table` (where `authSchema = pgSchema("auth")`) -> "auth"
+ * - `pgTable`, `snakeCase.table`, `pgTable.withRLS` -> undefined (default schema)
+ *
+ * Only string literal schema names are resolved; anything else yields undefined.
+ */
+function resolveSchemaName(expr: ts.Expression, scope: CasingScope): string | undefined {
+  if (ts.isIdentifier(expr)) {
+    return scope.schemaNames.get(expr.text);
+  }
+  if (ts.isPropertyAccessExpression(expr)) {
+    return resolveSchemaName(expr.expression, scope);
+  }
+  if (ts.isCallExpression(expr)) {
+    const schemaNameArg = expr.arguments[0];
+    if (
+      SCHEMA_HELPERS.includes(getCallExpressionName(expr) ?? "") &&
+      resolveCasing(expr.expression, scope) !== undefined
+    ) {
+      return schemaNameArg && ts.isStringLiteral(schemaNameArg) ? schemaNameArg.text : undefined;
+    }
+    return resolveSchemaName(expr.expression, scope);
   }
   return undefined;
 }

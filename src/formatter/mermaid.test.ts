@@ -1565,3 +1565,114 @@ describe("MermaidErDiagramFormatter", () => {
     });
   });
 });
+
+const col = (name: string, type: string, primaryKey = false) => ({
+  name,
+  type,
+  nullable: false,
+  primaryKey,
+  unique: false,
+});
+
+/** default-schema `users` and `billing.users`, with billing.users.user_id -> users.id */
+function buildSchemaQualifiedSchema(referencedSchema?: string): IntermediateSchema {
+  return {
+    databaseType: "postgresql",
+    tables: [
+      {
+        name: "users",
+        columns: [col("id", "serial", true), col("name", "text")],
+        indexes: [],
+        constraints: [],
+      },
+      {
+        name: "users",
+        schema: "billing",
+        columns: [col("id", "serial", true), col("user_id", "integer")],
+        indexes: [],
+        constraints: [
+          {
+            name: "users_user_id_fk",
+            type: "foreign_key",
+            columns: ["user_id"],
+            referencedTable: "users",
+            referencedSchema,
+            referencedColumns: ["id"],
+          },
+        ],
+      },
+    ],
+    relations: [
+      {
+        fromTable: "users",
+        fromSchema: "billing",
+        fromColumns: ["user_id"],
+        toTable: "users",
+        toSchema: referencedSchema,
+        toColumns: ["id"],
+        type: "many-to-one",
+      },
+    ],
+    enums: [],
+  };
+}
+
+describe("schema-qualified tables (#176)", () => {
+  it("should render distinct entities and FK marker only on billing_users", () => {
+    const out = new MermaidErDiagramFormatter().format(buildSchemaQualifiedSchema());
+
+    expect(out).toContain("    users {");
+    expect(out).toContain("    billing_users {");
+    expect(out).toContain("billing_users }o--|| users");
+
+    const billing = out.slice(out.indexOf("billing_users {"));
+    const billingBlock = billing.slice(0, billing.indexOf("}"));
+    expect(billingBlock).toContain("int user_id FK");
+
+    const users = out.slice(out.indexOf("    users {"));
+    const usersBlock = users.slice(0, users.indexOf("}"));
+    expect(usersBlock).not.toContain("FK");
+    expect(usersBlock).toContain("serial id PK");
+  });
+
+  it("should qualify both sides when the referenced table is in a schema", () => {
+    const schema = buildSchemaQualifiedSchema("accounts");
+    schema.tables[0].schema = "accounts";
+    const out = new MermaidErDiagramFormatter().format(schema);
+
+    expect(out).toContain("    accounts_users {");
+    expect(out).toContain("    billing_users {");
+    expect(out).toContain("billing_users }o--|| accounts_users");
+  });
+
+  it("should focus on a qualified table name", () => {
+    const schema = buildSchemaQualifiedSchema();
+    schema.tables.push({
+      name: "audit",
+      columns: [col("id", "serial", true)],
+      indexes: [],
+      constraints: [],
+    });
+    const formatter = new MermaidErDiagramFormatter();
+
+    const billing = formatter.formatFocused(schema, "billing.users");
+    expect(billing).toContain("billing_users {");
+    expect(billing).toContain("    users {");
+    expect(billing).toContain("billing_users }o--|| users");
+    expect(billing).not.toContain("audit");
+
+    // "users" is the default-schema table; it is still related to billing.users
+    const defaultUsers = formatter.formatFocused(schema, "users");
+    expect(defaultUsers).toContain("billing_users }o--|| users");
+
+    expect(formatter.formatFocused(schema, "missing.users")).toBe("erDiagram");
+  });
+
+  it("should not match a bare name against a schema-qualified table", () => {
+    const schema = buildSchemaQualifiedSchema();
+    schema.relations = [];
+    schema.tables[0].name = "accounts";
+    const out = new MermaidErDiagramFormatter().formatFocused(schema, "users");
+    expect(out).toBe("erDiagram");
+  });
+});

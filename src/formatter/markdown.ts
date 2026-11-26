@@ -8,6 +8,7 @@ import type {
   EnumDefinition,
 } from "../types";
 import type { OutputFormatter, FormatterOptions } from "./types";
+import { qualifyTableName } from "../table-name";
 
 /**
  * Link format for table references
@@ -119,7 +120,8 @@ export class MarkdownFormatter implements OutputFormatter {
 
     // Table rows
     for (const table of schema.tables) {
-      const name = this.options.useRelativeLinks ? this.createTableLink(table.name) : table.name;
+      const tableName = qualifyTableName(table.name, table.schema);
+      const name = this.options.useRelativeLinks ? this.createTableLink(tableName) : tableName;
       const columnCount = table.columns.length;
       const comment =
         this.options.includeComments && table.comment ? this.escapeMarkdown(table.comment) : "";
@@ -173,9 +175,11 @@ export class MarkdownFormatter implements OutputFormatter {
    */
   generateTableDoc(table: TableDefinition, schema: IntermediateSchema): string {
     const lines: string[] = [];
+    // Tables in a named schema are documented by their qualified name (`billing.users`)
+    const tableName = qualifyTableName(table.name, table.schema);
 
     // Table heading with anchor
-    lines.push(`## ${table.name}`);
+    lines.push(`## ${tableName}`);
     lines.push("");
 
     // Table comment (preserve newlines as <br> for better readability)
@@ -185,7 +189,7 @@ export class MarkdownFormatter implements OutputFormatter {
     }
 
     // Columns section
-    lines.push(this.generateColumnsTable(table.columns, table.name, schema));
+    lines.push(this.generateColumnsTable(table.columns, tableName, schema));
 
     // Constraints section
     if (this.options.includeConstraints && table.constraints.length > 0) {
@@ -200,10 +204,10 @@ export class MarkdownFormatter implements OutputFormatter {
     }
 
     // Relations section
-    const tableRelations = this.getTableRelations(table.name, schema.relations);
+    const tableRelations = this.getTableRelations(tableName, schema.relations);
     if (tableRelations.length > 0) {
       lines.push("");
-      lines.push(this.generateRelationsTable(tableRelations, table.name));
+      lines.push(this.generateRelationsTable(tableRelations, tableName));
     }
 
     return lines.join("\n");
@@ -317,17 +321,19 @@ export class MarkdownFormatter implements OutputFormatter {
     lines.push("|--------|-------|------|");
 
     for (const relation of relations) {
-      const isParent = relation.toTable === tableName;
-      const parent = `${relation.toTable}.${relation.toColumns.join(", ")}`;
-      const child = `${relation.fromTable}.${relation.fromColumns.join(", ")}`;
+      const toTable = this.getRelationToTable(relation);
+      const fromTable = this.getRelationFromTable(relation);
+      const isParent = toTable === tableName;
+      const parent = `${toTable}.${relation.toColumns.join(", ")}`;
+      const child = `${fromTable}.${relation.fromColumns.join(", ")}`;
       const type = this.formatRelationType(relation.type);
 
       // Add links if enabled
       const parentLink = this.options.useRelativeLinks
-        ? this.createTableLink(relation.toTable, parent)
+        ? this.createTableLink(toTable, parent)
         : parent;
       const childLink = this.options.useRelativeLinks
-        ? this.createTableLink(relation.fromTable, child)
+        ? this.createTableLink(fromTable, child)
         : child;
 
       // Highlight the current table
@@ -391,17 +397,37 @@ export class MarkdownFormatter implements OutputFormatter {
   }
 
   /**
+   * Get the qualified name of the source table of a relation
+   */
+  private getRelationFromTable(relation: RelationDefinition): string {
+    return qualifyTableName(relation.fromTable, relation.fromSchema);
+  }
+
+  /**
+   * Get the qualified name of the target table of a relation
+   */
+  private getRelationToTable(relation: RelationDefinition): string {
+    return qualifyTableName(relation.toTable, relation.toSchema);
+  }
+
+  /**
    * Get all relations involving a specific table
+   *
+   * @param tableName - The qualified table name
    */
   private getTableRelations(
     tableName: string,
     relations: RelationDefinition[],
   ): RelationDefinition[] {
-    return relations.filter((r) => r.fromTable === tableName || r.toTable === tableName);
+    return relations.filter(
+      (r) => this.getRelationFromTable(r) === tableName || this.getRelationToTable(r) === tableName,
+    );
   }
 
   /**
    * Get child relations for a specific column (where this column is referenced)
+   *
+   * @param tableName - The qualified table name
    */
   private getChildRelations(
     tableName: string,
@@ -409,15 +435,17 @@ export class MarkdownFormatter implements OutputFormatter {
     relations: RelationDefinition[],
   ): Array<{ table: string; column: string }> {
     return relations
-      .filter((r) => r.toTable === tableName && r.toColumns.includes(columnName))
+      .filter((r) => this.getRelationToTable(r) === tableName && r.toColumns.includes(columnName))
       .map((r) => ({
-        table: r.fromTable,
+        table: this.getRelationFromTable(r),
         column: r.fromColumns.join(", "),
       }));
   }
 
   /**
    * Get parent relations for a specific column (columns this column references)
+   *
+   * @param tableName - The qualified table name
    */
   private getParentRelations(
     tableName: string,
@@ -425,9 +453,11 @@ export class MarkdownFormatter implements OutputFormatter {
     relations: RelationDefinition[],
   ): Array<{ table: string; column: string }> {
     return relations
-      .filter((r) => r.fromTable === tableName && r.fromColumns.includes(columnName))
+      .filter(
+        (r) => this.getRelationFromTable(r) === tableName && r.fromColumns.includes(columnName),
+      )
       .map((r) => ({
-        table: r.toTable,
+        table: this.getRelationToTable(r),
         column: r.toColumns.join(", "),
       }));
   }
@@ -470,7 +500,8 @@ export class MarkdownFormatter implements OutputFormatter {
 
     if (constraint.type === "foreign_key" && constraint.referencedTable) {
       const refColumns = constraint.referencedColumns?.join(", ") || "";
-      return `(${columns}) → ${constraint.referencedTable}(${refColumns})`;
+      const refTable = qualifyTableName(constraint.referencedTable, constraint.referencedSchema);
+      return `(${columns}) → ${refTable}(${refColumns})`;
     }
 
     return `(${columns})`;
@@ -490,13 +521,18 @@ export class MarkdownFormatter implements OutputFormatter {
   }
   /**
    * Create a table link based on the configured link format
+   *
+   * In "anchor" mode, dots are removed from the anchor of a qualified name
+   * (`billing.users` -> `#billingusers`), matching the heading IDs generated by GitHub.
+   *
+   * @param tableName - The qualified table name
    */
   private createTableLink(tableName: string, displayText?: string): string {
     const text = displayText || tableName;
     if (this.options.linkFormat === "file") {
       return `[${text}](./${tableName}.md)`;
     }
-    return `[${text}](#${tableName})`;
+    return `[${text}](#${tableName.replace(/\./g, "")})`;
   }
 
   /**

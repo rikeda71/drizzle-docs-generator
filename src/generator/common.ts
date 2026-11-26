@@ -27,11 +27,13 @@ import type {
   DatabaseType,
   IntermediateRelationType,
 } from "../types";
-import { extractComments, type SchemaComments } from "../parser/comments";
+import { extractComments, type SchemaComments, type TableComment } from "../parser/comments";
 import { extractRelations, type SchemaRelations } from "../parser/relations";
 import { V0RelationAdapter } from "../adapter/v0-adapter";
 import { V1RelationAdapter } from "../adapter/v1-adapter";
 import type { UnifiedRelation } from "../adapter/types";
+import { qualifyTableName } from "../table-name";
+import { getTableSchema } from "./table-schema";
 
 /**
  * Configuration for different database dialects
@@ -104,6 +106,7 @@ export abstract class BaseGenerator<
   protected parsedRelations: SchemaRelations | undefined;
   protected source: string | undefined;
   protected abstract dialectConfig: DialectConfig;
+  private defaultSchemaTableNames: Set<string> | undefined;
 
   /**
    * Create a new generator instance
@@ -410,10 +413,15 @@ export abstract class BaseGenerator<
    *
    * @param tableName - The name of the source table
    * @param foreignKeys - Array of foreign key definitions from table config
+   * @param tableSchema - The schema of the source table (undefined for the default schema)
    */
-  protected collectForeignKeysFromConfig(tableName: string, foreignKeys: ForeignKeyConfig[]): void {
+  protected collectForeignKeysFromConfig(
+    tableName: string,
+    foreignKeys: ForeignKeyConfig[],
+    tableSchema?: string,
+  ): void {
     for (const fk of foreignKeys) {
-      const ref = this.parseForeignKey(tableName, fk);
+      const ref = this.parseForeignKey(tableName, fk, tableSchema);
       this.generatedRefs.push(ref);
     }
   }
@@ -426,18 +434,26 @@ export abstract class BaseGenerator<
    *
    * @param tableName - The name of the source table
    * @param fk - The foreign key definition to parse
+   * @param tableSchema - The schema of the source table (undefined for the default schema)
    * @returns GeneratedRef object
    */
-  protected parseForeignKey(tableName: string, fk: ForeignKeyConfig): GeneratedRef {
+  protected parseForeignKey(
+    tableName: string,
+    fk: ForeignKeyConfig,
+    tableSchema?: string,
+  ): GeneratedRef {
     const reference = fk.reference();
     const fromColumns = reference.columns.map((c) => c.name);
     const toColumns = reference.foreignColumns.map((c) => c.name);
     const toTable = getTableName(reference.foreignTable);
+    const toSchema = getTableSchema(reference.foreignTable);
 
     return {
       fromTable: tableName,
+      fromSchema: tableSchema,
       fromColumns,
       toTable,
+      toSchema,
       toColumns,
       type: ">",
       onDelete: fk.onDelete,
@@ -496,8 +512,10 @@ export abstract class BaseGenerator<
   private unifiedRelationToDefinition(unified: UnifiedRelation): RelationDefinition {
     return {
       fromTable: unified.sourceTable,
+      fromSchema: unified.sourceSchema,
       fromColumns: unified.sourceColumns,
       toTable: unified.targetTable,
+      toSchema: unified.targetSchema,
       toColumns: unified.targetColumns,
       type: unified.relationType,
       onDelete: unified.onDelete,
@@ -540,7 +558,11 @@ export abstract class BaseGenerator<
         const tableName = getTableName(table);
         const tableConfig = this.getTableConfig(table);
         if (tableConfig && tableConfig.foreignKeys.length > 0) {
-          this.collectForeignKeysFromConfig(tableName, tableConfig.foreignKeys);
+          this.collectForeignKeysFromConfig(
+            tableName,
+            tableConfig.foreignKeys,
+            getTableSchema(table),
+          );
         }
       }
       // Convert GeneratedRefs to RelationDefinitions
@@ -590,12 +612,13 @@ export abstract class BaseGenerator<
    */
   protected tableToDefinition(table: Table): TableDefinition {
     const tableName = getTableName(table);
+    const tableSchema = getTableSchema(table);
     const columns = getTableColumns(table);
     const tableConfig = this.getTableConfig(table);
 
     // Convert columns
     const columnDefinitions: ColumnDefinition[] = Object.values(columns).map((column) =>
-      this.columnToDefinition(column, tableName),
+      this.columnToDefinition(column, tableName, tableSchema),
     );
 
     // Convert indexes
@@ -606,10 +629,11 @@ export abstract class BaseGenerator<
       this.extractConstraintDefinitions(tableConfig);
 
     // Get table comment
-    const tableComment = this.comments?.tables[tableName]?.comment;
+    const tableComment = this.getTableComment(tableName, tableSchema)?.comment;
 
     return {
       name: tableName,
+      schema: tableSchema,
       comment: tableComment,
       columns: columnDefinitions,
       indexes: indexDefinitions,
@@ -618,14 +642,64 @@ export abstract class BaseGenerator<
   }
 
   /**
+   * Look up the extracted comments of a table
+   *
+   * Comments of a table in a named schema are keyed by its qualified name
+   * (`billing.users`). The bare name is used as a fallback (e.g., pre-extracted
+   * comments, or a schema name the parser could not resolve) only when no
+   * default-schema table has that name, so that same-named tables do not share comments.
+   *
+   * @param tableName - The table name
+   * @param tableSchema - The schema of the table (undefined for the default schema)
+   * @returns The table comments, if any
+   */
+  protected getTableComment(
+    tableName: string,
+    tableSchema: string | undefined,
+  ): TableComment | undefined {
+    const tableComments = this.comments?.tables;
+    if (!tableComments) {
+      return undefined;
+    }
+    if (!tableSchema) {
+      return tableComments[tableName];
+    }
+    const qualified = tableComments[qualifyTableName(tableName, tableSchema)];
+    if (qualified || this.getDefaultSchemaTableNames().has(tableName)) {
+      return qualified;
+    }
+    return tableComments[tableName];
+  }
+
+  /**
+   * Get the names of the tables in the default schema (cached)
+   */
+  private getDefaultSchemaTableNames(): Set<string> {
+    if (!this.defaultSchemaTableNames) {
+      this.defaultSchemaTableNames = new Set(
+        this.getTables()
+          .filter((table) => getTableSchema(table) === undefined)
+          .map((table) => getTableName(table)),
+      );
+    }
+    return this.defaultSchemaTableNames;
+  }
+
+  /**
    * Convert a Drizzle column to a ColumnDefinition
    *
    * @param column - The Drizzle column to convert
    * @param tableName - The name of the table containing the column
+   * @param tableSchema - The schema of the table (undefined for the default schema)
    * @returns The column definition
    */
-  protected columnToDefinition(column: AnyColumn, tableName: string): ColumnDefinition {
-    const columnComment = this.comments?.tables[tableName]?.columns[column.name]?.comment;
+  protected columnToDefinition(
+    column: AnyColumn,
+    tableName: string,
+    tableSchema?: string,
+  ): ColumnDefinition {
+    const columnComment = this.getTableComment(tableName, tableSchema)?.columns[column.name]
+      ?.comment;
     const defaultValue = this.getDefaultValue(column);
 
     return {
@@ -729,12 +803,14 @@ export abstract class BaseGenerator<
     const columns = reference.columns.map((c) => c.name);
     const referencedColumns = reference.foreignColumns.map((c) => c.name);
     const referencedTable = getTableName(reference.foreignTable);
+    const referencedSchema = getTableSchema(reference.foreignTable);
 
     return {
       name: fk.name || `fk_${columns.join("_")}_${referencedTable}`,
       type: "foreign_key",
       columns,
       referencedTable,
+      referencedSchema,
       referencedColumns,
     };
   }
@@ -764,8 +840,10 @@ export abstract class BaseGenerator<
 
     return {
       fromTable: ref.fromTable,
+      fromSchema: ref.fromSchema,
       fromColumns: ref.fromColumns,
       toTable: ref.toTable,
+      toSchema: ref.toSchema,
       toColumns: ref.toColumns,
       type: relationType,
       onDelete: ref.onDelete,

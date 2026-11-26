@@ -99,7 +99,7 @@ export class DbmlFormatter implements OutputFormatter {
    * Format a table definition to DBML
    */
   private formatTable(dbml: DbmlBuilder, table: TableDefinition): void {
-    const tableName = this.escapeName(table.name);
+    const tableName = this.formatTableName(table.name, table.schema);
     dbml.line(`Table ${tableName} {`);
     dbml.indent();
 
@@ -285,8 +285,12 @@ export class DbmlFormatter implements OutputFormatter {
    * Format a relation definition to DBML Ref
    */
   private formatRelation(dbml: DbmlBuilder, relation: RelationDefinition): void {
-    const from = this.formatRelationSide(relation.fromTable, relation.fromColumns);
-    const to = this.formatRelationSide(relation.toTable, relation.toColumns);
+    const from = this.formatRelationSide(
+      relation.fromTable,
+      relation.fromSchema,
+      relation.fromColumns,
+    );
+    const to = this.formatRelationSide(relation.toTable, relation.toSchema, relation.toColumns);
     const type = this.getRelationType(relation.type);
 
     let refLine = `Ref: ${from} ${type} ${to}`;
@@ -311,12 +315,22 @@ export class DbmlFormatter implements OutputFormatter {
    *
    * A single column is `"table"."column"`; a composite key is
    * `"table".("a", "b")` — DBML requires the parentheses whenever a side
-   * has more than one column.
+   * has more than one column. Tables in a named schema are prefixed with it
+   * (`"schema"."table"."column"`).
    */
-  private formatRelationSide(table: string, columns: string[]): string {
+  private formatRelationSide(table: string, schema: string | undefined, columns: string[]): string {
     const escaped = columns.map((c) => this.escapeName(c));
     const columnList = escaped.length > 1 ? `(${escaped.join(", ")})` : escaped.join(", ");
-    return `${this.escapeName(table)}.${columnList}`;
+    return `${this.formatTableName(table, schema)}.${columnList}`;
+  }
+
+  /**
+   * Format a table name, qualified with its schema when it is not in the default schema
+   * (`"billing"."users"`)
+   */
+  private formatTableName(table: string, schema: string | undefined): string {
+    const name = this.escapeName(table);
+    return schema ? `${this.escapeName(schema)}.${name}` : name;
   }
 
   /**

@@ -26,8 +26,12 @@ export interface GenerateOptions<TSchema extends Record<string, unknown>> {
  */
 export interface GeneratedRef {
   fromTable: string;
+  /** Schema of the source table (undefined for the default schema) */
+  fromSchema?: string;
   fromColumns: string[];
   toTable: string;
+  /** Schema of the target table (undefined for the default schema) */
+  toSchema?: string;
   toColumns: string[];
   type: "<" | ">" | "-";
   onDelete?: string;
@@ -103,6 +107,8 @@ export interface ConstraintDefinition {
   definition?: string;
   /** Referenced table (for foreign keys) */
   referencedTable?: string;
+  /** Schema of the referenced table (for foreign keys, undefined for the default schema) */
+  referencedSchema?: string;
   /** Referenced columns (for foreign keys) */
   referencedColumns?: string[];
 }
@@ -113,7 +119,10 @@ export interface ConstraintDefinition {
 export interface TableDefinition {
   /** Table name */
   name: string;
-  /** Schema name (e.g., "public" for PostgreSQL) */
+  /**
+   * Schema name given to `pgSchema(...)` / `mysqlSchema(...)` (e.g., "billing").
+   * Undefined for tables in the default schema.
+   */
   schema?: string;
   /** JSDoc comment or description for this table */
   comment?: string;
@@ -142,10 +151,14 @@ export interface RelationDefinition {
   name?: string;
   /** Source table name */
   fromTable: string;
+  /** Schema of the source table (undefined for the default schema) */
+  fromSchema?: string;
   /** Source column names */
   fromColumns: string[];
   /** Target table name */
   toTable: string;
+  /** Schema of the target table (undefined for the default schema) */
+  toSchema?: string;
   /** Target column names */
   toColumns: string[];
   /** Relation cardinality */
