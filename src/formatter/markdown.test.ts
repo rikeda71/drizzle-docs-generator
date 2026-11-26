@@ -1379,4 +1379,32 @@ describe("schema-qualified tables (#176)", () => {
     expect(md).toContain("[billing.users.user_id](#billingusers-1)");
     expect(md).toContain("[billingusers.id](#billingusers)");
   });
+
+  it("should count enum headings that precede the table headings", () => {
+    const schema = buildSchemaQualifiedSchema();
+    schema.tables[0].name = "billingusers";
+    schema.relations[0].toTable = "billingusers";
+    // The enum heading "## billingusers" comes before both table headings
+    schema.enums = [{ name: "billingusers", values: ["a"] }];
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [billingusers](#billingusers-1) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers-2) | 2 |");
+    expect(md).toContain("[billing.users.user_id](#billingusers-2)");
+    expect(md).toContain("[billingusers.id](#billingusers-1)");
+  });
+
+  it("should count section headings of preceding tables", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // "### Columns" of the preceding users table already uses the "columns" heading ID
+    schema.tables[1].name = "columns";
+    schema.tables[1].schema = undefined;
+    schema.relations[0].fromTable = "columns";
+    schema.relations[0].fromSchema = undefined;
+    const md = new MarkdownFormatter().format(schema);
+
+    expect(md).toContain("| [users](#users) | 2 |");
+    expect(md).toContain("| [columns](#columns-1) | 2 |");
+    expect(md).toContain("[columns.user_id](#columns-1)");
+  });
 });
