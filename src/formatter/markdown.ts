@@ -131,7 +131,7 @@ export class MarkdownFormatter implements OutputFormatter {
     for (const table of schema.tables) {
       const tableName = qualifyTableName(table.name, table.schema);
       const name = this.options.useRelativeLinks
-        ? this.createTableLink(tableName, anchors)
+        ? this.createTableLink(tableName, this.getTableKey(table), anchors)
         : tableName;
       const columnCount = table.columns.length;
       const comment =
@@ -199,6 +199,7 @@ export class MarkdownFormatter implements OutputFormatter {
     const lines: string[] = [];
     // Tables in a named schema are documented by their qualified name (`billing.users`)
     const tableName = qualifyTableName(table.name, table.schema);
+    const tableKey = this.getTableKey(table);
 
     // Table heading with anchor
     lines.push(`## ${tableName}`);
@@ -211,7 +212,7 @@ export class MarkdownFormatter implements OutputFormatter {
     }
 
     // Columns section
-    lines.push(this.generateColumnsTable(table.columns, tableName, schema, anchors));
+    lines.push(this.generateColumnsTable(table.columns, tableKey, schema, anchors));
 
     // Constraints section
     if (this.options.includeConstraints && table.constraints.length > 0) {
@@ -226,10 +227,10 @@ export class MarkdownFormatter implements OutputFormatter {
     }
 
     // Relations section
-    const tableRelations = this.getTableRelations(tableName, schema.relations);
+    const tableRelations = this.getTableRelations(tableKey, schema.relations);
     if (tableRelations.length > 0) {
       lines.push("");
-      lines.push(this.generateRelationsTable(tableRelations, tableName, anchors));
+      lines.push(this.generateRelationsTable(tableRelations, tableKey, anchors));
     }
 
     return lines.join("\n");
@@ -240,7 +241,7 @@ export class MarkdownFormatter implements OutputFormatter {
    */
   private generateColumnsTable(
     columns: ColumnDefinition[],
-    tableName: string,
+    tableKey: string,
     schema: IntermediateSchema,
     anchors: Map<string, string>,
   ): string {
@@ -256,8 +257,8 @@ export class MarkdownFormatter implements OutputFormatter {
 
     // Build column info with relations
     const columnInfo = columns.map((col) => {
-      const children = this.getChildRelations(tableName, col.name, schema.relations);
-      const parents = this.getParentRelations(tableName, col.name, schema.relations);
+      const children = this.getChildRelations(tableKey, col.name, schema.relations);
+      const parents = this.getParentRelations(tableKey, col.name, schema.relations);
       return { column: col, children, parents };
     });
 
@@ -336,7 +337,7 @@ export class MarkdownFormatter implements OutputFormatter {
    */
   private generateRelationsTable(
     relations: RelationDefinition[],
-    tableName: string,
+    tableKey: string,
     anchors: Map<string, string>,
   ): string {
     const lines: string[] = [];
@@ -350,17 +351,17 @@ export class MarkdownFormatter implements OutputFormatter {
     for (const relation of relations) {
       const toTable = this.getRelationToTable(relation);
       const fromTable = this.getRelationFromTable(relation);
-      const isParent = toTable === tableName;
+      const isParent = this.getRelationToKey(relation) === tableKey;
       const parent = `${toTable}.${relation.toColumns.join(", ")}`;
       const child = `${fromTable}.${relation.fromColumns.join(", ")}`;
       const type = this.formatRelationType(relation.type);
 
       // Add links if enabled
       const parentLink = this.options.useRelativeLinks
-        ? this.createTableLink(toTable, anchors, parent)
+        ? this.createTableLink(toTable, this.getRelationToKey(relation), anchors, parent)
         : parent;
       const childLink = this.options.useRelativeLinks
-        ? this.createTableLink(fromTable, anchors, child)
+        ? this.createTableLink(fromTable, this.getRelationFromKey(relation), anchors, child)
         : child;
 
       // Highlight the current table
@@ -438,33 +439,66 @@ export class MarkdownFormatter implements OutputFormatter {
   }
 
   /**
+   * Build the internal identity key of a table from its schema and table names
+   *
+   * The schema and table names are kept separate (unlike the qualified name), so that
+   * a default-schema table named `billing.users` and a table `users` in schema `billing`
+   * get different keys.
+   */
+  private toTableKey(tableName: string, schema: string | undefined): string {
+    return JSON.stringify([schema ?? null, tableName]);
+  }
+
+  /**
+   * Get the identity key of a table
+   */
+  private getTableKey(table: TableDefinition): string {
+    return this.toTableKey(table.name, table.schema);
+  }
+
+  /**
+   * Get the identity key of the source table of a relation
+   */
+  private getRelationFromKey(relation: RelationDefinition): string {
+    return this.toTableKey(relation.fromTable, relation.fromSchema);
+  }
+
+  /**
+   * Get the identity key of the target table of a relation
+   */
+  private getRelationToKey(relation: RelationDefinition): string {
+    return this.toTableKey(relation.toTable, relation.toSchema);
+  }
+
+  /**
    * Get all relations involving a specific table
    *
-   * @param tableName - The qualified table name
+   * @param tableKey - The table identity key
    */
   private getTableRelations(
-    tableName: string,
+    tableKey: string,
     relations: RelationDefinition[],
   ): RelationDefinition[] {
     return relations.filter(
-      (r) => this.getRelationFromTable(r) === tableName || this.getRelationToTable(r) === tableName,
+      (r) => this.getRelationFromKey(r) === tableKey || this.getRelationToKey(r) === tableKey,
     );
   }
 
   /**
    * Get child relations for a specific column (where this column is referenced)
    *
-   * @param tableName - The qualified table name
+   * @param tableKey - The table identity key
    */
   private getChildRelations(
-    tableName: string,
+    tableKey: string,
     columnName: string,
     relations: RelationDefinition[],
-  ): Array<{ table: string; column: string }> {
+  ): Array<{ table: string; tableKey: string; column: string }> {
     return relations
-      .filter((r) => this.getRelationToTable(r) === tableName && r.toColumns.includes(columnName))
+      .filter((r) => this.getRelationToKey(r) === tableKey && r.toColumns.includes(columnName))
       .map((r) => ({
         table: this.getRelationFromTable(r),
+        tableKey: this.getRelationFromKey(r),
         column: r.fromColumns.join(", "),
       }));
   }
@@ -472,19 +506,18 @@ export class MarkdownFormatter implements OutputFormatter {
   /**
    * Get parent relations for a specific column (columns this column references)
    *
-   * @param tableName - The qualified table name
+   * @param tableKey - The table identity key
    */
   private getParentRelations(
-    tableName: string,
+    tableKey: string,
     columnName: string,
     relations: RelationDefinition[],
-  ): Array<{ table: string; column: string }> {
+  ): Array<{ table: string; tableKey: string; column: string }> {
     return relations
-      .filter(
-        (r) => this.getRelationFromTable(r) === tableName && r.fromColumns.includes(columnName),
-      )
+      .filter((r) => this.getRelationFromKey(r) === tableKey && r.fromColumns.includes(columnName))
       .map((r) => ({
         table: this.getRelationToTable(r),
+        tableKey: this.getRelationToKey(r),
         column: r.toColumns.join(", "),
       }));
   }
@@ -493,13 +526,15 @@ export class MarkdownFormatter implements OutputFormatter {
    * Format relation links for display in columns table
    */
   private formatRelationLinks(
-    relations: Array<{ table: string; column: string }>,
+    relations: Array<{ table: string; tableKey: string; column: string }>,
     anchors: Map<string, string>,
   ): string {
     return relations
       .map((r) => {
         const text = `${r.table}.${r.column}`;
-        return this.options.useRelativeLinks ? this.createTableLink(r.table, anchors, text) : text;
+        return this.options.useRelativeLinks
+          ? this.createTableLink(r.table, r.tableKey, anchors, text)
+          : text;
       })
       .join(", ");
   }
@@ -553,10 +588,12 @@ export class MarkdownFormatter implements OutputFormatter {
    * Create a table link based on the configured link format
    *
    * @param tableName - The qualified table name
+   * @param tableKey - The table identity key (see `toTableKey`)
    * @param anchors - Table heading anchors computed by `getTableAnchors` for the current render
    */
   private createTableLink(
     tableName: string,
+    tableKey: string,
     anchors: Map<string, string>,
     displayText?: string,
   ): string {
@@ -564,12 +601,12 @@ export class MarkdownFormatter implements OutputFormatter {
     if (this.options.linkFormat === "file") {
       return `[${text}](./${tableName}.md)`;
     }
-    const anchor = anchors.get(tableName) ?? tableName.replace(/\./g, "");
+    const anchor = anchors.get(tableKey) ?? tableName.replace(/\./g, "");
     return `[${text}](#${anchor})`;
   }
 
   /**
-   * Get the anchors of table headings, keyed by qualified table name
+   * Get the anchors of table headings, keyed by table identity key (see `toTableKey`)
    *
    * Dots are removed from the anchor of a qualified name (`billing.users` -> `billingusers`),
    * matching the heading IDs generated by GitHub. GitHub gives a heading whose ID is already
@@ -589,8 +626,8 @@ export class MarkdownFormatter implements OutputFormatter {
       return new Map();
     }
 
-    // Headings in document order; `tableName` is set for table headings
-    const headings: Array<{ text: string; tableName?: string }> = [{ text: "Tables" }];
+    // Headings in document order; `tableKey` is set for table headings
+    const headings: Array<{ text: string; tableKey?: string }> = [{ text: "Tables" }];
     if (schema.enums.length > 0) {
       headings.push({ text: "Enums" });
       for (const enumDef of schema.enums) {
@@ -599,7 +636,8 @@ export class MarkdownFormatter implements OutputFormatter {
     }
     for (const table of schema.tables) {
       const tableName = qualifyTableName(table.name, table.schema);
-      headings.push({ text: tableName, tableName });
+      const tableKey = this.getTableKey(table);
+      headings.push({ text: tableName, tableKey });
       headings.push({ text: "Columns" });
       if (this.options.includeConstraints && table.constraints.length > 0) {
         headings.push({ text: "Constraints" });
@@ -607,7 +645,7 @@ export class MarkdownFormatter implements OutputFormatter {
       if (this.options.includeIndexes && table.indexes.length > 0) {
         headings.push({ text: "Indexes" });
       }
-      if (this.getTableRelations(tableName, schema.relations).length > 0) {
+      if (this.getTableRelations(tableKey, schema.relations).length > 0) {
         headings.push({ text: "Relations" });
       }
     }
@@ -631,9 +669,9 @@ export class MarkdownFormatter implements OutputFormatter {
       }
       slugCounts.set(id, 0);
 
-      if (heading.tableName !== undefined) {
+      if (heading.tableKey !== undefined) {
         const collides = (slugOccurrences.get(slug) ?? 0) > 1 || id !== slug;
-        anchors.set(heading.tableName, collides ? id : heading.tableName.replace(/\./g, ""));
+        anchors.set(heading.tableKey, collides ? id : heading.text.replace(/\./g, ""));
       }
     }
 

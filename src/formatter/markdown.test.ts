@@ -1431,6 +1431,34 @@ describe("schema-qualified tables (#176)", () => {
     expect(md).toContain("[columns.user_id](#columns-1)");
   });
 
+  it("should keep a dotted default-schema table distinct from the same name in a schema", () => {
+    const schema = buildSchemaQualifiedSchema();
+    // default-schema "billing.users" and "users" in schema "billing" share a qualified name
+    schema.tables[0].name = "billing.users";
+    schema.relations[0].toTable = "billing.users";
+    const formatter = new MarkdownFormatter();
+    const md = formatter.format(schema);
+
+    // Each index link targets its own heading
+    expect(md).toContain("| [billing.users](#billingusers) | 2 |");
+    expect(md).toContain("| [billing.users](#billingusers-1) | 2 |");
+
+    // The default-schema table is the parent; the table in schema "billing" is the child
+    const parentDoc = formatter.generateTableDoc(schema.tables[0], schema);
+    const childDoc = formatter.generateTableDoc(schema.tables[1], schema);
+    expect(parentDoc).toContain(
+      "| **[billing.users.id](#billingusers)** | [billing.users.user_id](#billingusers-1) |",
+    );
+    expect(childDoc).toContain(
+      "| [billing.users.id](#billingusers) | **[billing.users.user_id](#billingusers-1)** |",
+    );
+    // Column relations are attached to the correct table only
+    expect(parentDoc).toMatch(
+      /\| \*\*id\*\* \|[^\n]*\| \[billing\.users\.user_id\]\(#billingusers-1\) \| - \|/,
+    );
+    expect(childDoc).toMatch(/\| \*\*id\*\* \|[^\n]*\| - \| - \|/);
+  });
+
   it("should compute the heading anchors once per render", () => {
     const schema = buildSchemaQualifiedSchema();
     const formatter = new MarkdownFormatter();
